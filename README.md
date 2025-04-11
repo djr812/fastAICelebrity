@@ -95,7 +95,17 @@ The model is trained using a ResNet-50 architecture fine-tuned on the CelebA dat
 
 This project is for educational purposes only. The CelebA dataset comes with its own license that must be respected.
 
+When using CelebA, you agree the following terms and conditions.
+•	The CelebA dataset is available for *non-commercial research purposes* only.
+•	All images of the CelebA dataset are obtained from the Internet which are not property of MMLAB, The Chinese University of Hong Kong. The MMLAB is not responsible for the content nor the meaning of these images.
+•	You agree *not to* reproduce, duplicate, copy, sell, trade, resell or exploit for any commercial purposes, any portion of the images and any portion of derived data.
+•	You agree *not to* further copy, publish or distribute any portion of the CelebA dataset. Except, for internal use at a single site within the same organization it is allowed to make copies of the dataset.
+•	The MMLAB reserves the right to terminate your access to the CelebA dataset at any time.
+
 ## Acknowledgments
 
 - CelebA dataset creators
-- fastai and PyTorch communities 
+- fastai and PyTorch communities
+- The CelebA dataset is provided by the Multimedia Laboratory, The Chinese University of Hong Kong.
+
+
