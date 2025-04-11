@@ -1,0 +1,38 @@
+{
+    "typeCheckingMode": "basic",  // Options: "off", "basic", "strict"
+    "exclude": [
+      "**/node_modules",
+      "**/.git",
+      "**/__pycache__",
+      "**/.vscode",
+      "**/.env",
+      "**/venv",
+      "**/img_align_celeba",
+      "**/img_align_celeba.zip"
+    ],
+    "include": [
+      "src",  // Path to the source code folder
+      "app.py"  // Specific file(s) or directories to include
+    ],
+    "reportMissingImports": true,  // Report when imports are missing
+    "reportMissingTypeStubs": true,  // Report missing type stubs
+    "reportUnusedFunction": true,  // Report unused functions
+    "reportUnusedVariable": true,  // Report unused variables
+    "reportGeneralTypeIssues": true,  // Report type issues generally
+    "reportUnknownParameterType": "error",  // Options: "none", "warning", "error"
+    "reportUnknownMemberType": "warning",  // Options: "none", "warning", "error"
+    "pythonVersion": "3.8",  // Specify the Python version (can be "3.6", "3.7", "3.8", etc.)
+    "pythonPlatform": "Linux",  // Options: "Linux", "Windows", "Darwin" (macOS)
+    "stubPath": "./typings",  // Path to custom type stubs (if any)
+    "useLibraryCodeForTypes": true,  // Use library code for types (improves type inference)
+    "venvPath": "./.venv",  // Path to the virtual environment (if you're using one)
+    "extraPaths": [
+      "./libs"  // Additional paths to check for modules
+    ],
+    "plugins": [
+      {
+        "name": "pyright-plugins"  // Optional: add additional plugins if needed
+      }
+    ]
+  }
+  
