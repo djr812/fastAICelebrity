@@ -7,6 +7,8 @@ Includes confidence calibration and visualization
 
 import os
 import sys
+import pickle
+import json
 import numpy as np
 from pathlib import Path
 import matplotlib.pyplot as plt
@@ -18,9 +20,8 @@ import argparse
 
 # Configuration
 MODEL_PATH = Path("models")
-DEFAULT_MODEL = "improved_celebrity_model.pth"
-NAMES_FILE = MODEL_PATH/"celebrity_names.txt"
-MAPPING_FILE = MODEL_PATH/"class_mapping.txt"
+DEFAULT_MODEL = "celebrity_recognition_model.pth"  # Changed to your existing model
+VOCAB_FILE = MODEL_PATH/"vocab.pkl"
 CONFIDENCE_THRESHOLD = 0.4  # Minimum confidence to consider a prediction valid
 
 # Image preprocessing
@@ -42,91 +43,46 @@ def parse_args():
                         help=f"Confidence threshold (default: {CONFIDENCE_THRESHOLD})")
     return parser.parse_args()
 
-def load_celebrity_names():
-    """Load celebrity name mapping"""
-    id_to_name = {}
+def load_vocabulary():
+    """Load vocabulary mapping from pickle file"""
+    vocab = {}
+    try:
+        if VOCAB_FILE.exists():
+            print(f"Loading vocabulary from {VOCAB_FILE}")
+            with open(VOCAB_FILE, 'rb') as f:
+                vocab = pickle.load(f)
+    except Exception as e:
+        print(f"Error loading vocabulary: {e}")
     
-    # Try dedicated names file first
-    if NAMES_FILE.exists():
-        print(f"Loading celebrity names from {NAMES_FILE}")
-        with open(NAMES_FILE, "r") as f:
-            for line in f:
-                parts = line.strip().split(",")
-                if len(parts) >= 2:
-                    class_id, name = parts[0], parts[1]
-                    id_to_name[class_id] = name
-    
-    # If we still don't have names, load from class mapping
-    if not id_to_name and MAPPING_FILE.exists():
-        print(f"Loading class mapping from {MAPPING_FILE}")
-        with open(MAPPING_FILE, "r") as f:
-            for line in f:
-                parts = line.strip().split(",")
-                if len(parts) >= 2:
-                    class_id, idx = parts[0], parts[1]
-                    id_to_name[idx] = f"Celebrity_{class_id}"
-    
-    # Fallback to generic names from celebrities.txt
-    if not id_to_name and os.path.exists("celebrities.txt"):
+    # Fallback to celebrities.txt if vocab is empty
+    if not vocab and os.path.exists("celebrities.txt"):
         print("Loading names from celebrities.txt")
         with open("celebrities.txt", "r") as f:
             names = [line.strip() for line in f.readlines() if line.strip()]
             for i, name in enumerate(names):
-                id_to_name[str(i)] = name
+                vocab[i] = name
     
-    # Final fallback to generic names
-    if not id_to_name:
-        print("No name mapping found, using generic names")
+    # If still no vocabulary, use generic names
+    if not vocab:
+        print("No vocabulary found, using generic names")
         for i in range(100):
-            id_to_name[str(i)] = f"Celebrity_{i}"
+            vocab[i] = f"Celebrity_{i}"
     
-    # Create reverse mapping (index to name)
-    idx_to_name = {}
-    for i in range(len(id_to_name)):
-        idx_to_name[i] = id_to_name.get(str(i), f"Celebrity_{i}")
-    
-    return idx_to_name
+    return vocab
 
-def create_model(checkpoint):
-    """Create model from checkpoint"""
-    # Determine number of classes
-    num_classes = checkpoint.get('num_classes', 100)
-    if 'num_classes' not in checkpoint and 'model_state_dict' in checkpoint:
-        # Try to determine from final layer
-        state_dict = checkpoint['model_state_dict']
-        fc_layers = [k for k in state_dict.keys() if 'fc' in k and 'weight' in k]
-        if fc_layers:
-            fc_layer = state_dict[fc_layers[-1]]
-            if isinstance(fc_layer, torch.Tensor):
-                num_classes = fc_layer.shape[0]
-    
-    print(f"Creating model with {num_classes} output classes")
-    
-    # Determine architecture
-    model_name = checkpoint.get('architecture', 'resnet50')
-    
-    # Create model based on architecture
-    if model_name == 'resnet18':
+def create_model(num_classes=100, arch='resnet50'):
+    """Create model architecture"""
+    if arch == 'resnet18':
         model = models.resnet18(weights=None)
-        in_features = model.fc.in_features
-        model.fc = nn.Linear(in_features, num_classes)
-    elif model_name == 'resnet34':
+    elif arch == 'resnet34':
         model = models.resnet34(weights=None)
-        in_features = model.fc.in_features
-        model.fc = nn.Linear(in_features, num_classes)
     else:  # Default to resnet50
         model = models.resnet50(weights=None)
-        in_features = model.fc.in_features
-        # Check if our model uses dropout
-        if any('fc.0' in k for k in checkpoint['model_state_dict'].keys()):
-            model.fc = nn.Sequential(
-                nn.Dropout(0.3),
-                nn.Linear(in_features, num_classes)
-            )
-        else:
-            model.fc = nn.Linear(in_features, num_classes)
     
-    return model, num_classes
+    in_features = model.fc.in_features
+    model.fc = nn.Linear(in_features, num_classes)
+    
+    return model
 
 def load_model(model_path):
     """Load the trained model"""
@@ -140,14 +96,42 @@ def load_model(model_path):
         # Load checkpoint
         checkpoint = torch.load(model_path, map_location='cpu')
         
+        # Determine number of classes
+        num_classes = 100  # Default
+        
+        if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
+            # This is a dictionary-based checkpoint
+            state_dict = checkpoint['model_state_dict']
+            architecture = checkpoint.get('architecture', 'resnet50')
+            
+            # Try to determine number of classes from the final layer
+            fc_keys = [k for k in state_dict.keys() if 'fc' in k and 'weight' in k]
+            if fc_keys:
+                fc_layer = state_dict[fc_keys[-1]]
+                if isinstance(fc_layer, torch.Tensor):
+                    num_classes = fc_layer.shape[0]
+        else:
+            # Direct state dict
+            state_dict = checkpoint
+            architecture = 'resnet50'  # Default
+            
+            # Try to determine number of classes
+            fc_keys = [k for k in state_dict.keys() if 'fc' in k and 'weight' in k]
+            if fc_keys:
+                fc_layer = state_dict[fc_keys[-1]]
+                if isinstance(fc_layer, torch.Tensor):
+                    num_classes = fc_layer.shape[0]
+        
+        print(f"Creating model with {num_classes} output classes using {architecture}")
+        
         # Create model
-        model, num_classes = create_model(checkpoint)
+        model = create_model(num_classes, architecture)
         
         # Load state dict
-        if 'model_state_dict' in checkpoint:
+        if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
             model.load_state_dict(checkpoint['model_state_dict'])
         else:
-            # Try loading directly
+            # Direct state dict
             model.load_state_dict(checkpoint)
         
         # Set to evaluation mode
@@ -157,6 +141,7 @@ def load_model(model_path):
     
     except Exception as e:
         print(f"Error loading model: {e}")
+        print(f"Details: {str(e)}")
         sys.exit(1)
 
 def calibrate_confidence(confidence, method='temperature', t=1.5):
@@ -170,9 +155,13 @@ def calibrate_confidence(confidence, method='temperature', t=1.5):
     else:
         return confidence
 
-def predict_image(model, image_path, idx_to_name, threshold=CONFIDENCE_THRESHOLD, save_output=False):
+def predict_image(model, image_path, vocab, threshold=CONFIDENCE_THRESHOLD, save_output=False):
     """Predict celebrity from image with calibrated confidence"""
     try:
+        # Check if image path exists
+        if not os.path.exists(image_path):
+            return json.dumps({"error": f"Image file not found: {image_path}"}, indent=2)
+            
         # Load and preprocess image
         image = Image.open(image_path).convert('RGB')
         input_tensor = preprocess(image)
@@ -198,13 +187,13 @@ def predict_image(model, image_path, idx_to_name, threshold=CONFIDENCE_THRESHOLD
         calibrated_confidence = calibrate_confidence(raw_confidence)
         
         # Get prediction name
-        celebrity_name = idx_to_name.get(top_idx, f"Unknown_{top_idx}")
+        celebrity_name = vocab.get(top_idx, f"Unknown_{top_idx}")
         
         # Prepare results
         results = []
         for i, (prob, idx) in enumerate(zip(top_probs, top_indices)):
             calibrated_prob = calibrate_confidence(float(prob))
-            name = idx_to_name.get(int(idx), f"Unknown_{idx}")
+            name = vocab.get(int(idx), f"Unknown_{idx}")
             results.append({
                 'name': name,
                 'confidence': calibrated_prob,
@@ -217,130 +206,124 @@ def predict_image(model, image_path, idx_to_name, threshold=CONFIDENCE_THRESHOLD
         return celebrity_name, calibrated_confidence, results
     
     except Exception as e:
-        print(f"Error predicting image: {e}")
+        error_msg = {"error": f"PyTorch prediction error: {str(e)}"}
+        print(json.dumps(error_msg, indent=2))
         return "Error", 0.0, []
 
 def visualize_prediction(image, results, top_confidence, threshold, save_output, image_path):
     """Create visualization of prediction results"""
-    # Create figure
-    plt.figure(figsize=(12, 5))
+    try:
+        # Create figure
+        plt.figure(figsize=(12, 5))
+        
+        # Display image on the left
+        plt.subplot(1, 2, 1)
+        plt.imshow(image)
+        plt.title('Input Image')
+        plt.axis('off')
+        
+        # Display confidence bars on the right
+        plt.subplot(1, 2, 2)
+        
+        # Extract names and confidences
+        names = [result['name'] for result in results]
+        confidences = [result['confidence'] for result in results]
+        
+        # Create horizontal bar chart
+        bars = plt.barh(range(len(confidences)), confidences, color=['green' if c >= threshold else 'orange' for c in confidences])
+        plt.yticks(range(len(names)), names)
+        plt.xlabel('Confidence (calibrated)')
+        plt.title('Predictions')
+        plt.xlim(0, 1)
+        
+        # Add confidence values
+        for i, bar in enumerate(bars):
+            plt.text(bar.get_width() + 0.01, bar.get_y() + bar.get_height()/2, 
+                    f'{confidences[i]:.2f}', va='center')
+        
+        plt.tight_layout()
+        
+        # Save or show visualization
+        if save_output:
+            output_dir = Path("predictions")
+            output_dir.mkdir(exist_ok=True)
+            
+            # Get original filename
+            original_name = Path(image_path).stem
+            output_path = output_dir / f"{original_name}_prediction.png"
+            
+            plt.savefig(output_path)
+            print(f"Saved prediction visualization to {output_path}")
+        else:
+            plt.show()
     
-    # Display image on the left
-    plt.subplot(1, 2, 1)
-    plt.imshow(image)
-    plt.title('Input Image')
-    plt.axis('off')
-    
-    # Display confidence bars on the right
-    plt.subplot(1, 2, 2)
-    
-    # Extract names and confidences
-    names = [result['name'] for result in results]
-    confidences = [result['confidence'] for result in results]
-    
-    # Create horizontal bar chart
-    bars = plt.barh(range(len(confidences)), confidences, color=['green' if c >= threshold else 'orange' for c in confidences])
-    plt.yticks(range(len(names)), names)
-    plt.xlabel('Confidence (calibrated)')
-    plt.title('Predictions')
-    plt.xlim(0, 1)
-    
-    # Add confidence values
-    for i, bar in enumerate(bars):
-        plt.text(bar.get_width() + 0.01, bar.get_y() + bar.get_height()/2, 
-                 f"{confidences[i]:.2%}", va='center')
-    
-    # Add threshold line
-    plt.axvline(x=threshold, color='red', linestyle='--', alpha=0.7, label=f'Threshold ({threshold:.2f})')
-    plt.legend()
-    
-    plt.tight_layout()
-    
-    # Save or display
-    if save_output:
-        output_path = os.path.splitext(image_path)[0] + "_prediction.png"
-        plt.savefig(output_path)
-        print(f"Prediction visualization saved to {output_path}")
-    else:
-        plt.show()
-    
-    plt.close()
+    except Exception as e:
+        print(f"Error in visualization: {e}")
 
 def print_prediction_result(celebrity, confidence, threshold, results):
-    """Print formatted prediction results"""
+    """Print prediction results in a nice format"""
+    # Print header
     print("\n" + "="*50)
-    print("PREDICTION RESULTS")
+    print("Celebrity Recognition Results")
     print("="*50)
     
-    if confidence >= threshold:
-        print(f"✓ Identified as: {celebrity}")
-        print(f"  Confidence:    {confidence:.2%}")
-    else:
-        print(f"× Low confidence prediction: {celebrity}")
-        print(f"  Confidence: {confidence:.2%} (below threshold of {threshold:.2%})")
-        print("  This person might not be in the training dataset.")
+    # Print top result with confidence
+    status = "✓ MATCH" if confidence >= threshold else "✗ LOW CONFIDENCE"
+    print(f"\nPrediction: {celebrity} ({confidence:.2f}) {status}")
     
-    print("\nTop 5 matches:")
-    for i, result in enumerate(results[:5], 1):
-        conf_symbol = "✓" if result['confidence'] >= threshold else "×"
-        print(f"{i}. {conf_symbol} {result['name']} - {result['confidence']:.2%}")
+    # Print confidence threshold
+    print(f"Confidence threshold: {threshold:.2f}")
+    
+    # Print table of top results
+    print("\nTop matches:")
+    print("-"*50)
+    print(f"{'Name':<30} {'Confidence':<10} {'Raw Score':<10}")
+    print("-"*50)
+    
+    for result in results:
+        name = result['name']
+        conf = result['confidence']
+        raw = result['raw_confidence']
+        print(f"{name:<30} {conf:.2f}{' *' if conf >= threshold else '':2} {raw:.2f}")
     
     print("="*50)
+    print("* Matches above confidence threshold")
 
 def main():
     """Main function"""
-    # Parse command line arguments
+    # Parse arguments
     args = parse_args()
     
+    # Resolve paths
+    model_path = MODEL_PATH / args.model
+    
     # Load model
-    model_path = args.model
-    if not os.path.isabs(model_path):
-        model_path = MODEL_PATH/model_path
-    
-    model, num_classes = load_model(model_path)
-    
-    # Load celebrity names
-    idx_to_name = load_celebrity_names()
-    print(f"Loaded {len(idx_to_name)} celebrity names")
-    
-    # Check mode
-    if args.image:
-        # Single image mode
-        if not os.path.exists(args.image):
-            print(f"Error: Image not found: {args.image}")
-            return 1
+    try:
+        model, num_classes = load_model(model_path)
+        print("Model loaded successfully")
+        
+        # Load vocabulary 
+        vocab = load_vocabulary()
+        
+        # If no image provided, print help and exit
+        if not args.image:
+            print("Error: No image provided")
+            print("Usage: python improved_predict.py --image <path_to_image>")
+            sys.exit(1)
         
         # Make prediction
         celebrity, confidence, results = predict_image(
-            model, args.image, idx_to_name, args.threshold, args.save
+            model, args.image, vocab, args.threshold, args.save
         )
         
         # Print results
-        print_prediction_result(celebrity, confidence, args.threshold, results)
-    else:
-        # Interactive mode
-        print("\nCelebrity Recognition - Interactive Mode")
-        print("Enter 'q' to quit")
-        
-        while True:
-            # Get image path
-            image_path = input("\nEnter image path: ")
-            if image_path.lower() == 'q':
-                break
-            
-            if not os.path.exists(image_path):
-                print(f"Error: Image not found: {image_path}")
-                continue
-            
-            # Make prediction
-            celebrity, confidence, results = predict_image(
-                model, image_path, idx_to_name, args.threshold, args.save
-            )
-            
-            # Print results
+        if celebrity != "Error":
             print_prediction_result(celebrity, confidence, args.threshold, results)
-    
-    return 0
+        
+    except Exception as e:
+        error_msg = {"error": str(e)}
+        print(json.dumps(error_msg, indent=2))
+        sys.exit(1)
 
 if __name__ == "__main__":
-    sys.exit(main()) 
+    main() 

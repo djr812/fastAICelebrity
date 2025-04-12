@@ -85,9 +85,23 @@ def run_improved_predict(image_path=None):
         print(f"Image not found: {image_path}")
         return False
     
+    # Find available models
+    available_model = None
+    if os.path.exists("models"):
+        pth_models = list(Path("models").glob("*.pth"))
+        if pth_models:
+            # Prefer celebrity_recognition_model.pth if available
+            if os.path.exists("models/celebrity_recognition_model.pth"):
+                available_model = "models/celebrity_recognition_model.pth"
+            else:
+                available_model = str(pth_models[0])
+    
     # Run the improved prediction script
     try:
         cmd = [sys.executable, "improved_predict.py", "--image", image_path]
+        if available_model:
+            cmd.extend(["--model", os.path.basename(available_model)])
+        
         print(f"Running: {' '.join(cmd)}")
         subprocess.run(cmd)
         return True
@@ -114,8 +128,8 @@ def main():
         print("\nPrediction completed successfully!")
     else:
         print("\nPrediction failed. Please check the errors above.")
-        print("\nYou can try running the script directly:")
-        print("  python improved_predict.py --image <path_to_image>")
+        print("\nTry running directly with:")
+        print("  python improved_predict.py --image <path_to_image> --model celebrity_recognition_model.pth")
 
 if __name__ == "__main__":
     main() 

@@ -1,301 +1,207 @@
 #!/usr/bin/env python
 """
-Direct prediction script that uses PyTorch directly
-Bypassing FastAI loading issues
+Ultra-simple direct prediction script for celebrity recognition.
+This script avoids architecture creation and loads directly from the saved model.
 """
 
 import os
 import sys
-import numpy as np
+import pickle
 from pathlib import Path
-from PIL import Image
-import torch
-import torch.nn as nn
-import torchvision.models as models
-import torchvision.transforms as transforms
+from fastai.vision.all import *
 
-# Add the required safe globals for FastAI models
-# This addresses the "Unsupported global" error in PyTorch 2.6+
-try:
-    # More comprehensive approach for safe globals
-    import torch.serialization
-    # Add all commonly used fastai globals
-    safe_classes = ['L', 'fastai', 'Tensor', 'Module', 'collections', 'pd', 'np']
-    for cls in safe_classes:
-        try:
-            torch.serialization.add_safe_globals([cls])
-        except:
-            pass
-    print("Added safe globals for PyTorch")
-except ImportError:
-    print("Could not configure safe globals - older PyTorch version")
+# Suppress warnings
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning)
 
 # Configuration
-MODEL_PATHS = [
-    'models/stage1.pth',
-    'stage1.pth',
-    'models/model.pth',
-    'model.pth',
-    'models/final_model.pth',
-    'final_model.pth'
-]
+MODEL_DIR = Path("models")
+DEFAULT_MODEL = "celebrity_recognition_model.pth"
+VOCAB_FILE = MODEL_DIR/"vocab.pkl"
 
-# Mapping file to convert indices to celebrity names
-CELEBS_FILE = 'celebrities.txt'  # we'll create this from the model's vocabulary
-
-# Prepare image transformation
-preprocess = transforms.Compose([
-    transforms.Resize(256),
-    transforms.CenterCrop(224),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-])
-
-def find_model_file():
-    """Find an available model file"""
-    for path in MODEL_PATHS:
-        if os.path.exists(path):
-            return path
-    return None
-
-def extract_vocab():
-    """Create a mapping file from class indices to celebrity names"""
-    vocab = []
+def load_celebrity_names():
+    """Load celebrity names from various possible sources"""
+    # First try vocab.pkl
+    if VOCAB_FILE.exists():
+        try:
+            print(f"Loading vocabulary from {VOCAB_FILE}")
+            with open(VOCAB_FILE, 'rb') as f:
+                vocab_data = pickle.load(f)
+                if isinstance(vocab_data, list):
+                    print(f"Found {len(vocab_data)} celebrities in list format")
+                    return vocab_data
+                elif isinstance(vocab_data, dict):
+                    print(f"Found {len(vocab_data)} celebrities in dict format")
+                    # Sort the dict by index for consistent results
+                    return [vocab_data[i] for i in sorted(vocab_data.keys())]
+                else:
+                    print(f"Unknown vocab format: {type(vocab_data)}")
+        except Exception as e:
+            print(f"Error loading vocab: {e}")
     
-    # First try to get actual celebrity identity data
-    celeba_id_files = [
-        'list_identity_celeba.txt',
-        'identity_CelebA.txt',
-        'identity_celeba.txt'
-    ]
+    # Try celebrities.txt as fallback
+    if os.path.exists("celebrities.txt"):
+        try:
+            with open("celebrities.txt", "r") as f:
+                names = [line.strip() for line in f if line.strip()]
+                if names:
+                    print(f"Loaded {len(names)} names from celebrities.txt")
+                    return names
+        except Exception as e:
+            print(f"Error loading from celebrities.txt: {e}")
     
-    # Try to load CelebA identity data first
-    for id_file in celeba_id_files:
-        if os.path.exists(id_file):
-            print(f"Found CelebA identity file: {id_file}")
-            try:
-                # Read the identity file, which maps images to celebrity IDs
-                with open(id_file, 'r') as f:
-                    lines = f.readlines()
-                
-                # Skip header if present
-                if len(lines) > 0 and not lines[0].strip().isdigit():
-                    lines = lines[1:]
-                
-                # Extract unique celebrity IDs and count them
-                celeb_ids = {}
-                for line in lines:
-                    parts = line.strip().split()
-                    if len(parts) >= 2:
-                        celeb_id = parts[1]
-                        if celeb_id not in celeb_ids:
-                            celeb_ids[celeb_id] = 0
-                        celeb_ids[celeb_id] += 1
-                
-                # Sort by frequency to get the most common ones
-                sorted_celebs = sorted(celeb_ids.items(), key=lambda x: x[1], reverse=True)
-                top_celebs = [f"CelebA_{cid}" for cid, _ in sorted_celebs[:100]]
-                print(f"Loaded {len(top_celebs)} celebrity IDs from CelebA data")
-                
-                # If we also have a mapping file with actual names, use it
-                if os.path.exists('celebrities.txt'):
-                    with open('celebrities.txt', 'r') as f:
-                        name_lines = f.readlines()
-                    
-                    name_list = [name.strip() for name in name_lines if name.strip()]
-                    
-                    # Create vocabulary with real names
-                    if len(name_list) >= len(top_celebs):
-                        vocab = name_list[:len(top_celebs)]
-                        print(f"Mapped celebrity IDs to {len(vocab)} real names")
-                        return vocab
-                
-                # If we don't have real names, return the IDs
-                return top_celebs
-            except Exception as e:
-                print(f"Error parsing CelebA identity file: {e}")
-    
-    # Look for a vocabulary file next
-    vocab_files = ['vocab.txt', 'models/vocab.txt', 'celebrities.txt', 'models/celebrities.txt']
-    
-    for file in vocab_files:
-        if os.path.exists(file):
-            print(f"Found vocabulary file: {file}")
-            with open(file, 'r') as f:
-                vocab = [line.strip() for line in f.readlines() if line.strip()]
-            return vocab
-            
-    # If we don't have a vocabulary file, create a simple one with indices
-    print("No vocabulary file found. Using generic class names.")
+    # Default to generic names
+    print("Using generic celebrity names")
     return [f"Celebrity_{i}" for i in range(100)]
 
-def create_fresh_model():
-    """Create a fresh ResNet34 model"""
-    # Create a ResNet model
-    model = models.resnet34(weights=None)
+def load_learner_direct(model_path):
+    """Load learner with direct approach, avoiding architecture creation"""
+    print(f"Loading model from {model_path}")
     
-    # Determine number of classes and modify the final layer
-    num_classes = 100  # Match number of classes in celebrities.txt
-    model.fc = nn.Linear(model.fc.in_features, num_classes)
+    # Get model directory (for relative paths)
+    model_dir = Path(model_path).parent
     
-    return model
-
-def simplified_load_model(model_path):
-    """Simplified model loading approach that avoids complex serialization"""
-    print(f"Loading model weights from {model_path} using simplified approach...")
-    
-    # Create fresh model
-    model = create_fresh_model()
-    
+    # Try multiple approaches to load the model
     try:
-        # Try to load using basic approach
-        checkpoint = torch.load(model_path, map_location='cpu', weights_only=False)
+        # First approach: direct load with full path
+        try:
+            print("Attempting direct learner load...")
+            learn = load_learner(model_path)
+            print("Model loaded successfully!")
+            return learn
+        except Exception as e:
+            print(f"Direct load failed: {e}")
         
-        # Check if it's a FastAI model and extract state dict
-        if isinstance(checkpoint, dict):
-            print("Loaded checkpoint dictionary")
-            
-            # Look for model key (FastAI format)
-            if 'model' in checkpoint:
-                print("Found 'model' key in checkpoint")
-                state_dict = checkpoint['model']
+        # Second approach: change to directory and load with basename
+        try:
+            print("Trying directory-based loading...")
+            # Store current directory
+            orig_dir = os.getcwd()
+            # Change to model directory
+            os.chdir(model_dir)
+            # Load with just the filename
+            learn = load_learner(Path(model_path).name)
+            # Return to original directory
+            os.chdir(orig_dir)
+            print("Model loaded successfully!")
+            return learn
+        except Exception as e:
+            print(f"Directory-based loading failed: {e}")
+            # Make sure we return to original directory
+            if orig_dir:
+                os.chdir(orig_dir)
+        
+        # Third approach: create a minimal learner and load state dict
+        print("Creating minimal learner...")
+        # Create a simple dataloader
+        dls = DataBlock(
+            blocks=(ImageBlock, CategoryBlock),
+            get_items=get_image_files,
+            get_y=lambda x: Path(x).parent.name,
+            item_tfms=Resize(224),
+        ).dataloaders(Path("."))
+        
+        # Create learner without pretrained weights
+        learn = vision_learner(dls, resnet50, pretrained=False)
+        
+        # Try to load state dict directly
+        try:
+            print("Loading state dict directly...")
+            state = torch.load(model_path, map_location='cpu')
+            # If state contains 'model', use that
+            if isinstance(state, dict) and 'model' in state:
+                print("Found 'model' key in state dict")
+                learn.model.load_state_dict(state['model'], strict=False)
+            # If it's a plain state dict, try loading it
             else:
-                # Try other common keys
-                for key in ['state_dict', 'model_state_dict', 'net', 'netG', 'weights']:
-                    if key in checkpoint:
-                        print(f"Found '{key}' in checkpoint")
-                        state_dict = checkpoint[key]
-                        break
-                else:
-                    # If no recognized keys, assume the whole thing is the state dict
-                    print("Using entire checkpoint as state dict")
-                    state_dict = checkpoint
-        else:
-            print("Checkpoint is not a dictionary, cannot extract state dict")
-            return None
-        
-        # Clean up state dict to match model structure
-        clean_dict = {}
-        for k, v in state_dict.items():
-            # Skip any problematic items
-            if not isinstance(k, str):
-                print(f"Skipping non-string key: {k}")
-                continue
-                
-            # Remove common prefixes
-            if k.startswith('module.'):
-                k = k[7:]
-            if k.startswith('encoder.'):
-                k = k[8:]
-                
-            # Only keep items that look like model weights
-            if ('weight' in k or 'bias' in k or 
-                'running_mean' in k or 'running_var' in k or
-                'num_batches_tracked' in k):
-                clean_dict[k] = v
-        
-        # Load state dict with loose matching
-        model.load_state_dict(clean_dict, strict=False)
-        print(f"Loaded {len(clean_dict)} parameters into model")
-        
-        return model
+                print("Loading plain state dict")
+                learn.model.load_state_dict(state, strict=False)
+            print("Model loaded with partial weights!")
+            return learn
+        except Exception as e:
+            print(f"State dict loading failed: {e}")
+            raise ValueError("All loading methods failed")
+    
     except Exception as e:
-        print(f"Error in simplified loading: {e}")
-        # If all else fails, just return a fresh untrained model
-        print("Returning untrained model")
-        return model
+        print(f"All loading attempts failed: {e}")
+        sys.exit(1)
 
-def predict_image(model, image_path, vocab):
-    """Predict using the model"""
+def predict_celebrity(model_path, image_path):
+    """Main prediction function with robust error handling"""
     try:
-        # Load and preprocess the image
+        # First, check files exist
+        if not os.path.exists(model_path):
+            print(f"Error: Model not found at {model_path}")
+            print(f"Current directory: {os.getcwd()}")
+            sys.exit(1)
+            
+        if not os.path.exists(image_path):
+            print(f"Error: Image not found at {image_path}")
+            sys.exit(1)
+        
+        # Load celebrity names
+        celebrity_names = load_celebrity_names()
+        
+        # Load the model
+        learn = load_learner_direct(model_path)
+        
+        # Process the image
         print(f"Processing image: {image_path}")
-        img = Image.open(image_path).convert('RGB')
-        img_tensor = preprocess(img)
-        img_tensor = img_tensor.unsqueeze(0)  # Add batch dimension
+        img = PILImage.create(image_path)
         
-        # Set the model to evaluation mode
-        model.eval()
-        
-        # Make prediction
-        with torch.no_grad():
-            outputs = model(img_tensor)
+        # Make prediction - with error handling since the model might be partial
+        try:
+            print("Making prediction...")
+            pred_class, pred_idx, probs = learn.predict(img)
             
-        # Get probabilities
-        probabilities = torch.nn.functional.softmax(outputs[0], dim=0)
-        
-        # Get top prediction
-        top_prob, top_class = torch.max(probabilities, 0)
-        
-        # Ensure class index is within vocab range
-        class_idx = min(top_class.item(), len(vocab)-1)
-        
-        # Get top 5 predictions (or fewer if not enough classes)
-        k = min(5, len(vocab), len(probabilities))
-        top5_probs, top5_indices = torch.topk(probabilities, k)
-        
-        # Print results
-        print("\nPrediction Results:")
-        print(f"Top prediction: {vocab[class_idx]}, Confidence: {top_prob.item():.2%}")
-        
-        print("\nTop predictions:")
-        for i, (idx, prob) in enumerate(zip(top5_indices, top5_probs)):
-            idx_val = min(idx.item(), len(vocab)-1)  # Ensure index is in range
-            print(f"{i+1}. {vocab[idx_val]}: {prob.item():.2%}")
+            # Display top predictions
+            print("\n==== Prediction Results ====")
             
-        return True
+            # Get top 5 predictions
+            top_idxs = probs.argsort(descending=True)[:5]
+            top_probs = probs[top_idxs]
+            
+            for i, (idx, prob) in enumerate(zip(top_idxs, top_probs)):
+                idx_val = int(idx)
+                name = celebrity_names[idx_val] if idx_val < len(celebrity_names) else f"Unknown_{idx_val}"
+                print(f"{i+1}. {name}: {prob:.4f}")
+            
+            return True
+            
+        except Exception as e:
+            print(f"Error making prediction: {e}")
+            import traceback
+            traceback.print_exc()
+            
+            # Show model info for debugging
+            print("\nModel information:")
+            print(f"Model type: {type(learn.model)}")
+            return False
+    
     except Exception as e:
-        print(f"Error making prediction: {e}")
+        print(f"Error: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 def main():
-    """Main function"""
+    """Main entry point"""
     print("Direct Celebrity Recognition")
-    print("===========================")
+    print("==========================")
     
-    # Find a model file
-    model_path = find_model_file()
-    if model_path is None:
-        print("Error: No model file found. Please train a model first.")
-        return
-        
-    print(f"Found model file: {model_path}")
-    
-    # Load the model using the simplified approach
-    model = simplified_load_model(model_path)
-    if model is None:
-        print("Error: Failed to load model. Using an untrained model.")
-        model = create_fresh_model()
-        
-    # Load or create vocabulary
-    vocab = extract_vocab()
-    print(f"Loaded {len(vocab)} celebrity names")
-    
-    # Check args
+    # Parse arguments
     if len(sys.argv) < 2:
-        print("Usage: python direct_predict.py <image_path>")
-        print("\nNo image provided. Entering interactive mode...")
-        
-        # Interactive mode
-        while True:
-            img_path = input("\nEnter an image path (or 'q' to quit): ")
-            if img_path.lower() == 'q':
-                break
-                
-            if not os.path.exists(img_path):
-                print(f"Error: File not found: {img_path}")
-                continue
-                
-            predict_image(model, img_path, vocab)
-    else:
-        # Use command line argument
-        img_path = sys.argv[1]
-        if not os.path.exists(img_path):
-            print(f"Error: File not found: {img_path}")
-            return
-            
-        # Make prediction
-        predict_image(model, img_path, vocab)
+        print("Usage: python direct_predict.py <image_path> [model_path]")
+        sys.exit(1)
+    
+    # Get image path
+    image_path = sys.argv[1]
+    
+    # Get model path (default or provided)
+    model_path = sys.argv[2] if len(sys.argv) > 2 else MODEL_DIR/DEFAULT_MODEL
+    
+    # Make prediction
+    predict_celebrity(model_path, image_path)
 
 if __name__ == "__main__":
     main() 

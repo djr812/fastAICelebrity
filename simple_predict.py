@@ -1,139 +1,208 @@
 #!/usr/bin/env python
 """
-Ultra simple prediction script for celebrity recognition
-Uses most basic model loading approach
+Simple, direct prediction script for the celebrity recognition model.
+Usage: python simple_predict.py <image_path>
 """
 
 import os
 import sys
-from pathlib import Path
+import pickle
 import torch
-from fastai.vision.all import *
+import torch.nn as nn
+from torchvision import models, transforms
+from PIL import Image
 
-# Set environment variable to avoid warnings
-os.environ["PYTHONWARNINGS"] = "ignore::UserWarning"
+# Fixed model path
+MODEL_PATH = "models/celebrity_recognition_model.pth"
+VOCAB_PATH = "models/vocab.pkl"
 
-def find_model_file():
-    """Find any available model file"""
-    print("Looking for model files...")
-    
-    # Places to look
-    places_to_check = [
-        Path("models"),
-        Path("."),
-        Path(".."),
-    ]
-    
-    # Extensions to try
-    extensions = [".pth"]
-    
-    # Check all possible locations
-    for place in places_to_check:
-        if not place.exists():
-            continue
-            
-        for file in place.glob("*.pth"):
-            print(f"Found model file: {file}")
-            return file
-            
-    print("No model files found")
-    return None
+# Image preprocessing
+preprocess = transforms.Compose([
+    transforms.Resize(256),
+    transforms.CenterCrop(224),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+])
 
-def predict_with_model(model_path, image_path):
-    """Make predictions using the most basic approach"""
+def load_model():
+    """Load the model with error handling"""
+    if not os.path.exists(MODEL_PATH):
+        print(f"Error: Model file not found at {MODEL_PATH}")
+        sys.exit(1)
     
-    print(f"Loading model from {model_path}...")
     try:
-        # Use the parent directory of the image to create a minimal dataloader
-        img_dir = Path(image_path).parent
+        # Load model file
+        print(f"Loading model from {MODEL_PATH}")
+        checkpoint = torch.load(MODEL_PATH, map_location='cpu')
         
-        # Create a basic model with resnet34 (smaller than resnet50)
-        data = DataBlock(
-            blocks=(ImageBlock, CategoryBlock),
-            get_items=get_image_files,
-            splitter=RandomSplitter(),
-            get_y=lambda x: "unknown"  # Use a placeholder label
-        )
+        # Check if this is a FastAI model
+        if isinstance(checkpoint, dict) and 'model' in checkpoint:
+            print("Detected FastAI model format")
+            model_state_dict = checkpoint['model']
+            # Check if we need to trim 'model.' prefix from keys
+            if all(k.startswith('model.') for k in model_state_dict.keys()):
+                print("Trimming 'model.' prefix from state dict keys")
+                model_state_dict = {k[6:]: v for k, v in model_state_dict.items() if k.startswith('model.')}
+        elif isinstance(checkpoint, dict) and 'state_dict' in checkpoint:
+            print("Detected PyTorch Lightning or similar format")
+            model_state_dict = checkpoint['state_dict']
+            # Check if we need to trim module prefix
+            if all(k.startswith('model.') for k in model_state_dict.keys()):
+                model_state_dict = {k[6:]: v for k, v in model_state_dict.items()}
+            elif all(k.startswith('module.') for k in model_state_dict.keys()):
+                model_state_dict = {k[7:]: v for k, v in model_state_dict.items()}
+        elif isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
+            print("Detected standard checkpoint format")
+            model_state_dict = checkpoint['model_state_dict']
+        else:
+            # Assume it's a direct state dict
+            print("Assuming direct state dictionary format")
+            model_state_dict = checkpoint
+            
+        # Try to determine the architecture 
+        architecture = 'resnet50'  # Default
+        if isinstance(checkpoint, dict):
+            architecture = checkpoint.get('architecture', 'resnet50')
+            
+        # Try to determine number of classes from the state dict
+        num_classes = 100  # Default
+        fc_key = None
         
-        # Create empty dls just to initialize the model
-        dls = data.dataloaders(img_dir)
+        # Look for fully connected layer weights to determine classes
+        for k in model_state_dict.keys():
+            if 'fc.weight' in k:
+                fc_key = k
+                break
+            
+        if fc_key and isinstance(model_state_dict[fc_key], torch.Tensor):
+            num_classes = model_state_dict[fc_key].shape[0]
         
-        # Create the learner
-        learn = vision_learner(dls, resnet34)
+        print(f"Using {architecture} with {num_classes} classes")
         
-        # Extract just the filename without extension
-        model_filename = Path(model_path).stem
-        print(f"Loading weights using filename: {model_filename}...")
+        # Create model based on architecture
+        if architecture == 'resnet18':
+            model = models.resnet18(weights=None)
+        elif architecture == 'resnet34':
+            model = models.resnet34(weights=None)
+        else:  # Default to resnet50
+            model = models.resnet50(weights=None)
         
-        # Change to the directory containing the model file
-        original_dir = os.getcwd()
-        os.chdir(Path(model_path).parent)
+        # Update the final layer to match number of classes
+        in_features = model.fc.in_features
+        model.fc = nn.Linear(in_features, num_classes)
         
-        # Load the model using just the filename
-        learn.load(model_filename)
+        # Try to load the state dict directly
+        try:
+            model.load_state_dict(model_state_dict)
+        except Exception as e:
+            print(f"Standard loading failed: {e}")
+            print("Attempting to load with strict=False...")
+            model.load_state_dict(model_state_dict, strict=False)
+            print("Warning: Some parameters were not loaded. Model may not be fully accurate.")
         
-        # Change back to original directory
-        os.chdir(original_dir)
-        
-        # Now make a prediction
+        # Set to evaluation mode
+        model.eval()
+        return model
+    
+    except Exception as e:
+        print(f"Error loading model: {e}")
+        # Print more details about the exception for debugging
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+def load_vocab():
+    """Load vocabulary for class names"""
+    try:
+        if os.path.exists(VOCAB_PATH):
+            with open(VOCAB_PATH, 'rb') as f:
+                vocab_data = pickle.load(f)
+                # Check if vocab is a list or dict
+                if isinstance(vocab_data, list):
+                    print(f"Loaded vocabulary as list with {len(vocab_data)} items")
+                    # Convert list to dictionary
+                    return {i: name for i, name in enumerate(vocab_data)}
+                elif isinstance(vocab_data, dict):
+                    print(f"Loaded vocabulary as dictionary with {len(vocab_data)} items")
+                    return vocab_data
+                else:
+                    print(f"Vocabulary is in unexpected format: {type(vocab_data)}")
+    except Exception as e:
+        print(f"Warning: Couldn't load vocabulary: {e}")
+    
+    # Try to load from celebrities.txt as fallback
+    if os.path.exists("celebrities.txt"):
+        try:
+            vocab = {}
+            with open("celebrities.txt", "r") as f:
+                lines = [line.strip() for line in f.readlines() if line.strip()]
+                for i, name in enumerate(lines):
+                    vocab[i] = name
+            print(f"Loaded {len(vocab)} names from celebrities.txt")
+            return vocab
+        except Exception as e:
+            print(f"Error loading from celebrities.txt: {e}")
+    
+    # Default vocabulary (generic class names)
+    print("Using default generic class names")
+    return {i: f"Celebrity_{i}" for i in range(100)}
+
+def predict(model, image_path, vocab):
+    """Make a prediction on an image"""
+    if not os.path.exists(image_path):
+        print(f"Error: Image not found at {image_path}")
+        sys.exit(1)
+    
+    try:
+        # Load and preprocess image
         print(f"Processing image: {image_path}")
-        img = PILImage.create(image_path)
+        image = Image.open(image_path).convert('RGB')
+        input_tensor = preprocess(image)
+        input_batch = input_tensor.unsqueeze(0)
         
         # Make prediction
-        pred, pred_idx, probs = learn.predict(img)
-        conf = float(probs[pred_idx])
+        with torch.no_grad():
+            output = model(input_batch)
+            probabilities = torch.nn.functional.softmax(output[0], dim=0)
         
-        print(f"\nPrediction Results:")
-        print(f"Predicted: {pred}")
-        print(f"Confidence: {conf:.2%}")
+        # Get top predictions
+        top_probs, top_indices = torch.topk(probabilities, 5)
+        
+        # Print results
+        print("\n==== Prediction Results ====")
+        for i, (prob, idx) in enumerate(zip(top_probs, top_indices)):
+            idx_int = int(idx)
+            # Handle both list and dictionary formats
+            if isinstance(vocab, dict):
+                name = vocab.get(idx_int, f"Unknown_{idx_int}")
+            else:
+                # Fallback for unexpected format
+                name = f"Celebrity_{idx_int}"
+            print(f"{i+1}. {name}: {prob.item():.4f}")
         
         return True
+    
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error during prediction: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 def main():
     """Main function"""
-    print("Simple Celebrity Recognition")
-    print("===========================")
-    
-    # Check args
+    # Check if image path is provided
     if len(sys.argv) < 2:
         print("Usage: python simple_predict.py <image_path>")
-        print("\nNo image provided. Entering interactive mode...")
-        
-        # Find a model file first
-        model_file = find_model_file()
-        if model_file is None:
-            print("Error: No model file found. Please train a model first.")
-            return
-            
-        # Interactive mode
-        while True:
-            img_path = input("\nEnter an image path (or 'q' to quit): ")
-            if img_path.lower() == 'q':
-                break
-                
-            if not os.path.exists(img_path):
-                print(f"Error: File not found: {img_path}")
-                continue
-                
-            predict_with_model(model_file, img_path)
-    else:
-        # Use command line argument
-        img_path = sys.argv[1]
-        if not os.path.exists(img_path):
-            print(f"Error: File not found: {img_path}")
-            return
-            
-        # Find a model file
-        model_file = find_model_file()
-        if model_file is None:
-            print("Error: No model file found. Please train a model first.")
-            return
-            
-        # Make prediction
-        predict_with_model(model_file, img_path)
+        sys.exit(1)
+    
+    image_path = sys.argv[1]
+    
+    # Load model and vocabulary
+    model = load_model()
+    vocab = load_vocab()
+    
+    # Make prediction
+    predict(model, image_path, vocab)
 
 if __name__ == "__main__":
     main() 
