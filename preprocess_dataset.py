@@ -14,7 +14,7 @@ DATA_DIR = Path("/home/dave/torch/celeba_images/img_align_celeba")
 IDENTITY_FILE = "list_identity_celeba.txt"
 PROCESSED_DIR = Path("processed_celeba")
 MIN_IMAGES_PER_CELEB = 20  # Minimum number of images per celebrity
-MAX_CELEBS = 100  # Maximum number of celebrities to include (None for all)
+MAX_CELEBS = 6348  # Use all celebrities with at least 20 images
 
 def load_identity_data():
     """Load celebrity identity data from the text file."""

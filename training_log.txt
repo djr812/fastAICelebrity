@@ -9203,3 +9203,324 @@ Name: count, Length: 10177, dtype: int64
 2025-04-12 21:52:18,298 - INFO - Error loading model: Error(s) in loading state_dict for ResNet:
 	size mismatch for fc.6.weight: copying a param with shape torch.Size([10, 512]) from checkpoint, the shape in current model is torch.Size([30, 512]).
 	size mismatch for fc.6.bias: copying a param with shape torch.Size([10]) from checkpoint, the shape in current model is torch.Size([30]).
+2025-04-15 14:10:39,005 - INFO - Starting celebrity recognition training pipeline
+2025-04-15 14:10:39,005 - INFO - GPU Memory: 0.00MB allocated, 0.00MB cached
+2025-04-15 14:10:39,006 - INFO - Loading identity data...
+2025-04-15 14:10:40,072 - INFO - Found 202599 files in /home/dave/torch/celeba_images/img_align_celeba
+2025-04-15 14:10:40,072 - INFO - Sample files: ['110740.jpg', '049093.jpg', '117700.jpg', '198326.jpg', '073171.jpg']
+2025-04-15 14:10:40,246 - INFO - Loaded 202599 image identity records
+2025-04-15 14:10:42,647 - INFO - Celebrity counts: identity_name
+Heidi_Range          35
+Fonzworth_Bentley    35
+Ekaterina_Vilkova    35
+Havana_Brown         34
+Hank_Baskett         34
+                     ..
+Scott_Parsons         1
+Cindy_Dolenc          1
+Vicki_Sato            1
+Grant_Turner          1
+Hamish_McColl         1
+Name: count, Length: 10177, dtype: int64
+2025-04-15 14:10:42,668 - INFO - After minimum image filtering: 193569 images of 8369 celebrities
+2025-04-15 14:10:42,710 - INFO - Limited to top 10 celebrities (331 images)
+2025-04-15 14:10:42,710 - INFO - Class distribution - Min: 31, Max: 35, Avg: 33.1 images per celebrity
+2025-04-15 14:10:42,711 - INFO - Creating pure PyTorch datasets...
+2025-04-15 14:10:42,714 - INFO - Training set: 264 images
+2025-04-15 14:10:42,714 - INFO - Validation set: 67 images
+2025-04-15 14:10:42,716 - INFO - Created datasets with 264 training and 67 validation samples
+2025-04-15 14:10:42,717 - INFO - Created balanced class weights with range: 0.97 - 1.03
+2025-04-15 14:10:42,717 - INFO - Created data loaders with 10 classes
+2025-04-15 14:10:42,718 - INFO - Creating pure PyTorch datasets...
+2025-04-15 14:10:42,719 - INFO - Training set: 264 images
+2025-04-15 14:10:42,719 - INFO - Validation set: 67 images
+2025-04-15 14:10:42,720 - INFO - Created datasets with 264 training and 67 validation samples
+2025-04-15 14:10:42,721 - INFO - Created balanced class weights with range: 0.97 - 1.03
+2025-04-15 14:10:42,721 - INFO - Created secondary data loaders with image size 320
+2025-04-15 14:10:42,721 - INFO - Using pure PyTorch implementation for training
+2025-04-15 14:10:42,722 - INFO - Creating PyTorch model with resnet50 architecture
+2025-04-15 14:10:54,170 - INFO - Model created and moved to cuda
+2025-04-15 14:10:54,171 - INFO - Added dropout and normalization layers for better regularization
+2025-04-15 14:10:54,171 - INFO - Training PyTorch model for 10 epochs with learning rate 0.0005
+2025-04-15 14:10:54,171 - INFO - GPU Memory: 93.97MB allocated, 118.00MB cached
+2025-04-15 14:10:54,171 - INFO - Using weighted loss function
+2025-04-15 14:10:54,171 - INFO - Using Focal Loss with class weights
+2025-04-15 14:10:54,172 - INFO - Using Cosine Annealing scheduler with warm restarts
+2025-04-15 14:10:54,172 - INFO - Using gradient accumulation with 2 steps (effective batch size: 16)
+2025-04-15 14:10:54,172 - INFO - Epoch 1/10
+2025-04-15 14:10:59,199 - INFO - Batch 20/33 - Loss: 16.0720
+2025-04-15 14:10:59,200 - INFO - GPU Memory: 314.27MB allocated, 1186.00MB cached
+2025-04-15 14:11:02,074 - INFO - Current learning rate: 0.0004884
+2025-04-15 14:11:02,767 - INFO - Epoch 1 results:
+2025-04-15 14:11:02,767 - INFO - Train Loss: 15.2497, Train Acc: 0.1450
+2025-04-15 14:11:02,767 - INFO - Val Loss: 6.6283, Val Acc: 0.2388, Top-3 Acc: 0.4179
+2025-04-15 14:11:02,767 - INFO - Epoch time: 8.60s
+2025-04-15 14:11:02,876 - INFO - Saved new best model with accuracy 0.2388
+2025-04-15 14:11:02,979 - INFO - Saved latest model for epoch 1
+2025-04-15 14:11:02,979 - INFO - Epoch 2/10
+2025-04-15 14:11:07,492 - INFO - Batch 20/33 - Loss: 10.0018
+2025-04-15 14:11:07,493 - INFO - GPU Memory: 314.27MB allocated, 1186.00MB cached
+2025-04-15 14:11:10,377 - INFO - Current learning rate: 0.0004546
+2025-04-15 14:11:11,014 - INFO - Epoch 2 results:
+2025-04-15 14:11:11,014 - INFO - Train Loss: 10.8574, Train Acc: 0.2528
+2025-04-15 14:11:11,014 - INFO - Val Loss: 6.5789, Val Acc: 0.3134, Top-3 Acc: 0.6269
+2025-04-15 14:11:11,014 - INFO - Epoch time: 8.04s
+2025-04-15 14:11:11,328 - INFO - Saved new best model with accuracy 0.3134
+2025-04-15 14:11:11,433 - INFO - Saved latest model for epoch 2
+2025-04-15 14:11:11,433 - INFO - Epoch 3/10
+2025-04-15 14:11:15,963 - INFO - Batch 20/33 - Loss: 12.5129
+2025-04-15 14:11:15,964 - INFO - GPU Memory: 314.27MB allocated, 1186.00MB cached
+2025-04-15 14:11:18,850 - INFO - Current learning rate: 0.0004021
+2025-04-15 14:11:19,483 - INFO - Epoch 3 results:
+2025-04-15 14:11:19,483 - INFO - Train Loss: 9.8368, Train Acc: 0.3503
+2025-04-15 14:11:19,483 - INFO - Val Loss: 6.3322, Val Acc: 0.4627, Top-3 Acc: 0.7313
+2025-04-15 14:11:19,484 - INFO - Epoch time: 8.05s
+2025-04-15 14:11:19,897 - INFO - Saved new best model with accuracy 0.4627
+2025-04-15 14:11:20,002 - INFO - Saved latest model for epoch 3
+2025-04-15 14:11:20,002 - INFO - Epoch 4/10
+2025-04-15 14:11:24,518 - INFO - Batch 20/33 - Loss: 2.0749
+2025-04-15 14:11:24,518 - INFO - GPU Memory: 314.27MB allocated, 1186.00MB cached
+2025-04-15 14:11:27,399 - INFO - Current learning rate: 0.0003359
+2025-04-15 14:11:28,026 - INFO - Epoch 4 results:
+2025-04-15 14:11:28,026 - INFO - Train Loss: 6.1944, Train Acc: 0.5079
+2025-04-15 14:11:28,026 - INFO - Val Loss: 5.1308, Val Acc: 0.4776, Top-3 Acc: 0.7910
+2025-04-15 14:11:28,026 - INFO - Epoch time: 8.02s
+2025-04-15 14:11:28,423 - INFO - Saved new best model with accuracy 0.4776
+2025-04-15 14:11:28,527 - INFO - Saved latest model for epoch 4
+2025-04-15 14:11:28,527 - INFO - Epoch 5/10
+2025-04-15 14:11:33,050 - INFO - Batch 20/33 - Loss: 5.2720
+2025-04-15 14:11:33,051 - INFO - GPU Memory: 314.27MB allocated, 1186.00MB cached
+2025-04-15 14:11:35,933 - INFO - Current learning rate: 0.0002625
+2025-04-15 14:11:36,570 - INFO - Epoch 5 results:
+2025-04-15 14:11:36,571 - INFO - Train Loss: 8.2968, Train Acc: 0.4647
+2025-04-15 14:11:36,571 - INFO - Val Loss: 3.7393, Val Acc: 0.4925, Top-3 Acc: 0.8209
+2025-04-15 14:11:36,571 - INFO - Epoch time: 8.04s
+2025-04-15 14:11:37,062 - INFO - Saved new best model with accuracy 0.4925
+2025-04-15 14:11:37,166 - INFO - Saved latest model for epoch 5
+2025-04-15 14:11:37,433 - INFO - Saved training curves to evaluation_results/training_curves_epoch5.png
+2025-04-15 14:11:37,434 - INFO - Epoch 6/10
+2025-04-15 14:11:41,952 - INFO - Batch 20/33 - Loss: 4.2723
+2025-04-15 14:11:41,953 - INFO - GPU Memory: 314.27MB allocated, 1186.00MB cached
+2025-04-15 14:11:44,834 - INFO - Current learning rate: 0.0001891
+2025-04-15 14:11:47,504 - INFO - Epoch 6 results:
+2025-04-15 14:11:47,504 - INFO - Train Loss: 7.3445, Train Acc: 0.4400
+2025-04-15 14:11:47,505 - INFO - Val Loss: 1.3544, Val Acc: 0.6716, Top-3 Acc: 0.8358
+2025-04-15 14:11:47,505 - INFO - Epoch time: 10.07s
+2025-04-15 14:11:48,136 - INFO - Saved new best model with accuracy 0.6716
+2025-04-15 14:11:48,239 - INFO - Saved latest model for epoch 6
+2025-04-15 14:11:48,239 - INFO - Epoch 7/10
+2025-04-15 14:11:52,761 - INFO - Batch 20/33 - Loss: 7.6633
+2025-04-15 14:11:52,762 - INFO - GPU Memory: 314.27MB allocated, 1186.00MB cached
+2025-04-15 14:11:55,654 - INFO - Current learning rate: 0.0001229
+2025-04-15 14:11:58,308 - INFO - Epoch 7 results:
+2025-04-15 14:11:58,308 - INFO - Train Loss: 6.0536, Train Acc: 0.5275
+2025-04-15 14:11:58,308 - INFO - Val Loss: 1.0114, Val Acc: 0.5821, Top-3 Acc: 0.8806
+2025-04-15 14:11:58,308 - INFO - Epoch time: 10.07s
+2025-04-15 14:11:58,308 - INFO - Validation accuracy did not improve. Early stopping counter: 1/5
+2025-04-15 14:11:58,417 - INFO - Saved latest model for epoch 7
+2025-04-15 14:11:58,417 - INFO - Epoch 8/10
+2025-04-15 14:12:02,939 - INFO - Batch 20/33 - Loss: 2.8579
+2025-04-15 14:12:02,940 - INFO - GPU Memory: 314.27MB allocated, 1186.00MB cached
+2025-04-15 14:12:05,832 - INFO - Current learning rate: 0.0000704
+2025-04-15 14:12:08,493 - INFO - Epoch 8 results:
+2025-04-15 14:12:08,493 - INFO - Train Loss: 6.4048, Train Acc: 0.5518
+2025-04-15 14:12:08,494 - INFO - Val Loss: 0.5368, Val Acc: 0.7164, Top-3 Acc: 0.9254
+2025-04-15 14:12:08,494 - INFO - Epoch time: 10.08s
+2025-04-15 14:12:09,311 - INFO - Saved new best model with accuracy 0.7164
+2025-04-15 14:12:09,415 - INFO - Saved latest model for epoch 8
+2025-04-15 14:12:09,415 - INFO - Epoch 9/10
+2025-04-15 14:12:13,925 - INFO - Batch 20/33 - Loss: 1.2550
+2025-04-15 14:12:13,926 - INFO - GPU Memory: 314.27MB allocated, 1186.00MB cached
+2025-04-15 14:12:16,810 - INFO - Current learning rate: 0.0000366
+2025-04-15 14:12:19,472 - INFO - Epoch 9 results:
+2025-04-15 14:12:19,472 - INFO - Train Loss: 4.2896, Train Acc: 0.6326
+2025-04-15 14:12:19,472 - INFO - Val Loss: 0.5733, Val Acc: 0.7463, Top-3 Acc: 0.9552
+2025-04-15 14:12:19,472 - INFO - Epoch time: 10.06s
+2025-04-15 14:12:20,116 - INFO - Saved new best model with accuracy 0.7463
+2025-04-15 14:12:20,220 - INFO - Saved latest model for epoch 9
+2025-04-15 14:12:20,221 - INFO - Epoch 10/10
+2025-04-15 14:12:24,731 - INFO - Batch 20/33 - Loss: 2.3071
+2025-04-15 14:12:24,732 - INFO - GPU Memory: 314.27MB allocated, 1186.00MB cached
+2025-04-15 14:12:27,619 - INFO - Current learning rate: 0.0005000
+2025-04-15 14:12:30,280 - INFO - Epoch 10 results:
+2025-04-15 14:12:30,280 - INFO - Train Loss: 4.3006, Train Acc: 0.6098
+2025-04-15 14:12:30,280 - INFO - Val Loss: 0.5493, Val Acc: 0.7313, Top-3 Acc: 0.9851
+2025-04-15 14:12:30,280 - INFO - Epoch time: 10.06s
+2025-04-15 14:12:30,281 - INFO - Validation accuracy did not improve. Early stopping counter: 1/5
+2025-04-15 14:12:30,389 - INFO - Saved latest model for epoch 10
+2025-04-15 14:12:30,622 - INFO - Saved training curves to evaluation_results/training_curves_epoch10.png
+2025-04-15 14:12:30,622 - INFO - Training completed in 96.45s
+2025-04-15 14:12:30,622 - INFO - Best validation accuracy: 0.7463
+2025-04-15 14:12:30,704 - INFO - Fine-tuning with larger image size 320
+2025-04-15 14:12:30,704 - INFO - Training PyTorch model for 15 epochs with learning rate 5e-05
+2025-04-15 14:12:30,704 - INFO - GPU Memory: 110.22MB allocated, 1186.00MB cached
+2025-04-15 14:12:30,705 - INFO - Using weighted loss function
+2025-04-15 14:12:30,705 - INFO - Using Focal Loss with class weights
+2025-04-15 14:12:30,705 - INFO - Using Cosine Annealing scheduler with warm restarts
+2025-04-15 14:12:30,706 - INFO - Using gradient accumulation with 2 steps (effective batch size: 16)
+2025-04-15 14:12:30,706 - INFO - Epoch 1/15
+2025-04-15 14:12:38,865 - INFO - Batch 20/33 - Loss: 10.2539
+2025-04-15 14:12:38,866 - INFO - GPU Memory: 323.55MB allocated, 1950.00MB cached
+2025-04-15 14:12:44,038 - INFO - Current learning rate: 0.0000495
+2025-04-15 14:12:45,161 - INFO - Epoch 1 results:
+2025-04-15 14:12:45,162 - INFO - Train Loss: 5.6010, Train Acc: 0.5363
+2025-04-15 14:12:45,162 - INFO - Val Loss: 2.7752, Val Acc: 0.6418, Top-3 Acc: 0.9104
+2025-04-15 14:12:45,162 - INFO - Epoch time: 14.46s
+2025-04-15 14:12:45,491 - INFO - Saved new best model with accuracy 0.6418
+2025-04-15 14:12:45,866 - INFO - Saved latest model for epoch 1
+2025-04-15 14:12:45,867 - INFO - Epoch 2/15
+2025-04-15 14:12:53,957 - INFO - Batch 20/33 - Loss: 3.5664
+2025-04-15 14:12:53,958 - INFO - GPU Memory: 323.55MB allocated, 1950.00MB cached
+2025-04-15 14:12:59,132 - INFO - Current learning rate: 0.0000479
+2025-04-15 14:13:00,247 - INFO - Epoch 2 results:
+2025-04-15 14:13:00,247 - INFO - Train Loss: 4.4927, Train Acc: 0.5912
+2025-04-15 14:13:00,248 - INFO - Val Loss: 2.8145, Val Acc: 0.6716, Top-3 Acc: 0.9403
+2025-04-15 14:13:00,248 - INFO - Epoch time: 14.38s
+2025-04-15 14:13:00,572 - INFO - Saved new best model with accuracy 0.6716
+2025-04-15 14:13:00,950 - INFO - Saved latest model for epoch 2
+2025-04-15 14:13:00,950 - INFO - Epoch 3/15
+2025-04-15 14:13:09,066 - INFO - Batch 20/33 - Loss: 2.7981
+2025-04-15 14:13:09,067 - INFO - GPU Memory: 323.55MB allocated, 1950.00MB cached
+2025-04-15 14:13:14,245 - INFO - Current learning rate: 0.0000455
+2025-04-15 14:13:15,380 - INFO - Epoch 3 results:
+2025-04-15 14:13:15,380 - INFO - Train Loss: 4.3094, Train Acc: 0.6184
+2025-04-15 14:13:15,380 - INFO - Val Loss: 2.5643, Val Acc: 0.7313, Top-3 Acc: 0.9254
+2025-04-15 14:13:15,380 - INFO - Epoch time: 14.43s
+2025-04-15 14:13:15,710 - INFO - Saved new best model with accuracy 0.7313
+2025-04-15 14:13:16,187 - INFO - Saved latest model for epoch 3
+2025-04-15 14:13:16,187 - INFO - Epoch 4/15
+2025-04-15 14:13:24,303 - INFO - Batch 20/33 - Loss: 9.2427
+2025-04-15 14:13:24,304 - INFO - GPU Memory: 323.55MB allocated, 1950.00MB cached
+2025-04-15 14:13:29,482 - INFO - Current learning rate: 0.0000421
+2025-04-15 14:13:30,604 - INFO - Epoch 4 results:
+2025-04-15 14:13:30,604 - INFO - Train Loss: 5.2273, Train Acc: 0.6081
+2025-04-15 14:13:30,604 - INFO - Val Loss: 2.7630, Val Acc: 0.7313, Top-3 Acc: 0.9254
+2025-04-15 14:13:30,605 - INFO - Epoch time: 14.42s
+2025-04-15 14:13:30,605 - INFO - Validation accuracy did not improve. Early stopping counter: 1/5
+2025-04-15 14:13:30,932 - INFO - Saved latest model for epoch 4
+2025-04-15 14:13:30,932 - INFO - Epoch 5/15
+2025-04-15 14:13:39,056 - INFO - Batch 20/33 - Loss: 3.1829
+2025-04-15 14:13:39,057 - INFO - GPU Memory: 323.55MB allocated, 1950.00MB cached
+2025-04-15 14:13:44,233 - INFO - Current learning rate: 0.0000381
+2025-04-15 14:13:45,364 - INFO - Epoch 5 results:
+2025-04-15 14:13:45,365 - INFO - Train Loss: 5.0108, Train Acc: 0.6088
+2025-04-15 14:13:45,365 - INFO - Val Loss: 2.5662, Val Acc: 0.7612, Top-3 Acc: 0.9104
+2025-04-15 14:13:45,365 - INFO - Epoch time: 14.43s
+2025-04-15 14:13:45,704 - INFO - Saved new best model with accuracy 0.7612
+2025-04-15 14:13:46,207 - INFO - Saved latest model for epoch 5
+2025-04-15 14:13:46,478 - INFO - Saved training curves to evaluation_results/training_curves_epoch5.png
+2025-04-15 14:13:46,478 - INFO - Epoch 6/15
+2025-04-15 14:13:54,577 - INFO - Batch 20/33 - Loss: 6.5214
+2025-04-15 14:13:54,578 - INFO - GPU Memory: 323.55MB allocated, 1950.00MB cached
+2025-04-15 14:13:59,754 - INFO - Current learning rate: 0.0000336
+2025-04-15 14:14:00,896 - INFO - Epoch 6 results:
+2025-04-15 14:14:00,896 - INFO - Train Loss: 4.5024, Train Acc: 0.6246
+2025-04-15 14:14:00,896 - INFO - Val Loss: 2.4490, Val Acc: 0.7164, Top-3 Acc: 0.9403
+2025-04-15 14:14:00,896 - INFO - Epoch time: 14.42s
+2025-04-15 14:14:00,896 - INFO - Validation accuracy did not improve. Early stopping counter: 1/5
+2025-04-15 14:14:01,216 - INFO - Saved latest model for epoch 6
+2025-04-15 14:14:01,216 - INFO - Epoch 7/15
+2025-04-15 14:14:09,321 - INFO - Batch 20/33 - Loss: 9.3596
+2025-04-15 14:14:09,322 - INFO - GPU Memory: 323.55MB allocated, 1950.00MB cached
+2025-04-15 14:14:14,510 - INFO - Current learning rate: 0.0000287
+2025-04-15 14:14:15,632 - INFO - Epoch 7 results:
+2025-04-15 14:14:15,633 - INFO - Train Loss: 3.9109, Train Acc: 0.6126
+2025-04-15 14:14:15,633 - INFO - Val Loss: 2.2659, Val Acc: 0.7164, Top-3 Acc: 0.9403
+2025-04-15 14:14:15,633 - INFO - Epoch time: 14.42s
+2025-04-15 14:14:15,633 - INFO - Validation accuracy did not improve. Early stopping counter: 2/5
+2025-04-15 14:14:15,955 - INFO - Saved latest model for epoch 7
+2025-04-15 14:14:15,955 - INFO - Epoch 8/15
+2025-04-15 14:14:24,068 - INFO - Batch 20/33 - Loss: 2.2615
+2025-04-15 14:14:24,069 - INFO - GPU Memory: 323.55MB allocated, 1950.00MB cached
+2025-04-15 14:14:29,252 - INFO - Current learning rate: 0.0000238
+2025-04-15 14:14:34,312 - INFO - Epoch 8 results:
+2025-04-15 14:14:34,312 - INFO - Train Loss: 3.8505, Train Acc: 0.6864
+2025-04-15 14:14:34,312 - INFO - Val Loss: 1.0222, Val Acc: 0.7015, Top-3 Acc: 0.8955
+2025-04-15 14:14:34,312 - INFO - Epoch time: 18.36s
+2025-04-15 14:14:34,312 - INFO - Validation accuracy did not improve. Early stopping counter: 3/5
+2025-04-15 14:14:34,971 - INFO - Saved latest model for epoch 8
+2025-04-15 14:14:34,972 - INFO - Epoch 9/15
+2025-04-15 14:14:43,092 - INFO - Batch 20/33 - Loss: 4.2215
+2025-04-15 14:14:43,093 - INFO - GPU Memory: 323.55MB allocated, 1950.00MB cached
+2025-04-15 14:14:48,279 - INFO - Current learning rate: 0.0000189
+2025-04-15 14:14:53,338 - INFO - Epoch 9 results:
+2025-04-15 14:14:53,338 - INFO - Train Loss: 5.1058, Train Acc: 0.6367
+2025-04-15 14:14:53,338 - INFO - Val Loss: 0.6339, Val Acc: 0.7761, Top-3 Acc: 0.9552
+2025-04-15 14:14:53,338 - INFO - Epoch time: 18.37s
+2025-04-15 14:14:53,709 - INFO - Saved new best model with accuracy 0.7761
+2025-04-15 14:14:54,685 - INFO - Saved latest model for epoch 9
+2025-04-15 14:14:54,685 - INFO - Epoch 10/15
+2025-04-15 14:15:02,797 - INFO - Batch 20/33 - Loss: 12.6289
+2025-04-15 14:15:02,798 - INFO - GPU Memory: 323.55MB allocated, 1950.00MB cached
+2025-04-15 14:15:07,980 - INFO - Current learning rate: 0.0000144
+2025-04-15 14:15:13,067 - INFO - Epoch 10 results:
+2025-04-15 14:15:13,067 - INFO - Train Loss: 3.4890, Train Acc: 0.6769
+2025-04-15 14:15:13,068 - INFO - Val Loss: 0.8521, Val Acc: 0.7761, Top-3 Acc: 0.9104
+2025-04-15 14:15:13,068 - INFO - Epoch time: 18.38s
+2025-04-15 14:15:13,068 - INFO - Validation accuracy did not improve. Early stopping counter: 1/5
+2025-04-15 14:15:13,835 - INFO - Saved latest model for epoch 10
+2025-04-15 14:15:14,055 - INFO - Saved training curves to evaluation_results/training_curves_epoch10.png
+2025-04-15 14:15:14,055 - INFO - Epoch 11/15
+2025-04-15 14:15:22,172 - INFO - Batch 20/33 - Loss: 2.5048
+2025-04-15 14:15:22,173 - INFO - GPU Memory: 323.55MB allocated, 1950.00MB cached
+2025-04-15 14:15:27,364 - INFO - Current learning rate: 0.0000104
+2025-04-15 14:15:32,416 - INFO - Epoch 11 results:
+2025-04-15 14:15:32,416 - INFO - Train Loss: 3.7529, Train Acc: 0.6809
+2025-04-15 14:15:32,417 - INFO - Val Loss: 0.3864, Val Acc: 0.7761, Top-3 Acc: 0.9552
+2025-04-15 14:15:32,417 - INFO - Epoch time: 18.36s
+2025-04-15 14:15:32,417 - INFO - Validation accuracy did not improve. Early stopping counter: 2/5
+2025-04-15 14:15:32,525 - INFO - Saved latest model for epoch 11
+2025-04-15 14:15:32,525 - INFO - Epoch 12/15
+2025-04-15 14:15:40,653 - INFO - Batch 20/33 - Loss: 2.8417
+2025-04-15 14:15:40,654 - INFO - GPU Memory: 323.55MB allocated, 1950.00MB cached
+2025-04-15 14:15:45,843 - INFO - Current learning rate: 0.0000070
+2025-04-15 14:15:50,931 - INFO - Epoch 12 results:
+2025-04-15 14:15:50,932 - INFO - Train Loss: 3.6155, Train Acc: 0.6924
+2025-04-15 14:15:50,932 - INFO - Val Loss: 0.6608, Val Acc: 0.8209, Top-3 Acc: 0.9403
+2025-04-15 14:15:50,932 - INFO - Epoch time: 18.41s
+2025-04-15 14:15:51,356 - INFO - Saved new best model with accuracy 0.8209
+2025-04-15 14:15:51,460 - INFO - Saved latest model for epoch 12
+2025-04-15 14:15:51,460 - INFO - Epoch 13/15
+2025-04-15 14:15:59,598 - INFO - Batch 20/33 - Loss: 2.8229
+2025-04-15 14:15:59,599 - INFO - GPU Memory: 323.55MB allocated, 1950.00MB cached
+2025-04-15 14:16:04,779 - INFO - Current learning rate: 0.0000046
+2025-04-15 14:16:09,858 - INFO - Epoch 13 results:
+2025-04-15 14:16:09,858 - INFO - Train Loss: 4.0095, Train Acc: 0.6962
+2025-04-15 14:16:09,858 - INFO - Val Loss: 0.5671, Val Acc: 0.7463, Top-3 Acc: 0.9403
+2025-04-15 14:16:09,858 - INFO - Epoch time: 18.40s
+2025-04-15 14:16:09,858 - INFO - Validation accuracy did not improve. Early stopping counter: 1/5
+2025-04-15 14:16:09,966 - INFO - Saved latest model for epoch 13
+2025-04-15 14:16:09,966 - INFO - Epoch 14/15
+2025-04-15 14:16:18,046 - INFO - Batch 20/33 - Loss: 0.7611
+2025-04-15 14:16:18,047 - INFO - GPU Memory: 324.05MB allocated, 1950.00MB cached
+2025-04-15 14:16:23,218 - INFO - Current learning rate: 0.0000030
+2025-04-15 14:16:28,286 - INFO - Epoch 14 results:
+2025-04-15 14:16:28,286 - INFO - Train Loss: 2.4168, Train Acc: 0.7917
+2025-04-15 14:16:28,287 - INFO - Val Loss: 0.6824, Val Acc: 0.7612, Top-3 Acc: 0.9254
+2025-04-15 14:16:28,287 - INFO - Epoch time: 18.32s
+2025-04-15 14:16:28,287 - INFO - Validation accuracy did not improve. Early stopping counter: 2/5
+2025-04-15 14:16:28,395 - INFO - Saved latest model for epoch 14
+2025-04-15 14:16:28,395 - INFO - Epoch 15/15
+2025-04-15 14:16:36,495 - INFO - Batch 20/33 - Loss: 0.0000
+2025-04-15 14:16:36,496 - INFO - GPU Memory: 324.05MB allocated, 1950.00MB cached
+2025-04-15 14:16:41,679 - INFO - Current learning rate: 0.0000500
+2025-04-15 14:16:46,766 - INFO - Epoch 15 results:
+2025-04-15 14:16:46,767 - INFO - Train Loss: 2.6588, Train Acc: 0.7197
+2025-04-15 14:16:46,767 - INFO - Val Loss: 0.5078, Val Acc: 0.7612, Top-3 Acc: 0.9403
+2025-04-15 14:16:46,767 - INFO - Epoch time: 18.37s
+2025-04-15 14:16:46,767 - INFO - Validation accuracy did not improve. Early stopping counter: 3/5
+2025-04-15 14:16:46,874 - INFO - Saved latest model for epoch 15
+2025-04-15 14:16:47,111 - INFO - Saved training curves to evaluation_results/training_curves_epoch15.png
+2025-04-15 14:16:47,111 - INFO - Training completed in 256.41s
+2025-04-15 14:16:47,111 - INFO - Best validation accuracy: 0.8209
+2025-04-15 14:16:47,295 - INFO - Saved final model to models/celebrity_recognition_model.pth
+2025-04-15 14:16:47,295 - INFO - Saved vocabulary for future predictions
+2025-04-15 14:16:47,296 - INFO - Training completed successfully
+2025-04-15 14:16:47,296 - INFO - Created prediction script: predict.py
+2025-04-15 14:19:15,436 - INFO - Creating PyTorch model with resnet50 architecture
+2025-04-15 14:19:15,920 - INFO - Model created and moved to cuda
+2025-04-15 14:19:15,920 - INFO - Added dropout and normalization layers for better regularization
+2025-04-15 14:19:15,920 - INFO - Loading model from models/celebrity_recognition_model.pth
+2025-04-15 14:19:16,006 - INFO - Error loading model: Error(s) in loading state_dict for ResNet:
+	size mismatch for fc.6.weight: copying a param with shape torch.Size([10, 512]) from checkpoint, the shape in current model is torch.Size([30, 512]).
+	size mismatch for fc.6.bias: copying a param with shape torch.Size([10]) from checkpoint, the shape in current model is torch.Size([30]).
