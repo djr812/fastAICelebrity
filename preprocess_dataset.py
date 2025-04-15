@@ -10,7 +10,7 @@ from collections import Counter
 import random
 
 # Configuration
-DATA_DIR = Path("img_align_celeba")
+DATA_DIR = Path("/home/dave/torch/celeba_images/img_align_celeba")
 IDENTITY_FILE = "list_identity_celeba.txt"
 PROCESSED_DIR = Path("processed_celeba")
 MIN_IMAGES_PER_CELEB = 20  # Minimum number of images per celebrity

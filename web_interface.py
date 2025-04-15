@@ -14,6 +14,7 @@ MODEL_PATH = Path("models")
 MODEL_NAME = "celebrity_recognition_model.pkl"
 IDENTITY_FILE = "list_identity_celeba.txt"
 TOP_N = 5
+DATA_DIR = Path("/home/dave/torch/celeba_images/img_align_celeba")
 
 # Load celebrity data
 def load_identity_data():

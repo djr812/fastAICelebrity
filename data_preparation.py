@@ -8,7 +8,7 @@ import random
 import shutil
 
 # Configuration
-DATA_DIR = Path("img_align_celeba")
+DATA_DIR = Path("/home/dave/torch/celeba_images/img_align_celeba")
 IDENTITY_FILE = "list_identity_celeba.txt"
 SAMPLE_DIR = Path("sample_images")
 SAMPLE_COUNT = 5

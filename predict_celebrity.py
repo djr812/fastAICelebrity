@@ -4,6 +4,9 @@ from pathlib import Path
 from fastai.vision.all import *
 import torch
 
+# Configuration
+DATA_DIR = Path("/home/dave/torch/celeba_images/img_align_celeba")
+
 def load_model(model_path):
     """Load the trained model."""
     print(f"Loading model from {model_path}...")
