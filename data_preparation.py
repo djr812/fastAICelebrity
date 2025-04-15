@@ -17,7 +17,7 @@ def load_identity_data():
     """Load celebrity identity data from the text file."""
     print("Loading identity data...")
     # Skip the first few lines which contain metadata
-    df = pd.read_csv(IDENTITY_FILE, sep="\s+", skiprows=1, 
+    df = pd.read_csv(IDENTITY_FILE, sep=r"\s+", skiprows=1, 
                      names=["image_id", "identity_name"])
     print(f"Loaded {len(df)} image identity records")
     return df

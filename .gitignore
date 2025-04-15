@@ -135,5 +135,5 @@ models/
 evaluation_results/
 celebrities.txt
 *.sh
-
-
+*.jpg
+processed_celeba/
