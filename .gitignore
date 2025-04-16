@@ -137,3 +137,5 @@ celebrities.txt
 *.sh
 *.jpg
 processed_celeba/
+training_log*.txt
+

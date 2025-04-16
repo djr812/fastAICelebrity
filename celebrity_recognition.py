@@ -936,7 +936,9 @@ def train_pytorch_model(model, dls, epochs=NUM_EPOCHS, lr=LEARNING_RATE):
             
             # Log progress
             if (i+1) % 20 == 0:
-                log_info(f"Batch {i+1}/{len(dls.train)} - Loss: {loss.item()*grad_accum_steps:.4f}")
+                batch_train_loss = loss.item() * grad_accum_steps
+                batch_train_acc = train_correct / train_total if train_total > 0 else 0
+                log_info(f"Batch {i+1}/{len(dls.train)} - Train Loss: {batch_train_loss:.4f}, Train Acc: {batch_train_acc:.4f}")
                 log_memory()
         
         # Calculate epoch statistics
