@@ -131,8 +131,8 @@ identity*.txt
 variables/
 sample_images/
 testpics/
-models/
-evaluation_results/
+model*/
+evaluation_result*/
 celebrities.txt
 *.sh
 *.jpg

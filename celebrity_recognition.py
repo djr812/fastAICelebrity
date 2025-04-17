@@ -20,6 +20,7 @@ from torchvision import transforms
 from PIL import Image
 from torchvision.models import resnet50, ResNet50_Weights
 from torchvision.models import convnext_small, ConvNeXt_Small_Weights
+from tqdm import tqdm
 
 # Focal Loss implementation for dealing with class imbalance
 class FocalLoss(nn.Module):
@@ -83,7 +84,6 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
         logging.FileHandler("training_log.txt"),
-        logging.StreamHandler()
     ]
 )
 logging.getLogger('PIL').setLevel(logging.WARNING)  # Reduce PIL logging noise
@@ -815,7 +815,6 @@ def train_pytorch_model(model, dls, epochs=NUM_EPOCHS, lr=LEARNING_RATE):
     
     # Learning rate scheduler
     if USE_COSINE_ANNEALING:
-        # Cosine annealing with warm restarts
         scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
             optimizer, 
             T_0=epochs, 
@@ -824,7 +823,6 @@ def train_pytorch_model(model, dls, epochs=NUM_EPOCHS, lr=LEARNING_RATE):
         )
         log_info("Using Cosine Annealing scheduler with warm restarts")
     else:
-        # Reduce on plateau scheduler
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer, mode='min', factor=0.5, patience=2, verbose=True, min_lr=lr/20
         )
@@ -863,44 +861,40 @@ def train_pytorch_model(model, dls, epochs=NUM_EPOCHS, lr=LEARNING_RATE):
         # Reset gradients for first accumulation step
         optimizer.zero_grad()
         
-        for i, (inputs, targets) in enumerate(dls.train):
+        # Create progress bar for training
+        train_pbar = tqdm(dls.train, 
+                         desc=f'Epoch {epoch+1}/{epochs}',
+                         leave=True,
+                         bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]')
+        
+        for i, (inputs, targets) in enumerate(train_pbar):
             # Move data to device
             inputs = inputs.to(DEVICE)
             targets = targets.to(DEVICE)
             
             # Check and fix tensor dimensions if needed
             if len(inputs.shape) != 4:
-                log_info(f"Fixing input shape: {inputs.shape} -> 4D tensor")
                 if len(inputs.shape) == 5:  # Case: [batch, c, c, h, w]
                     if inputs.shape[1] == 3 and inputs.shape[2] == 3:
                         inputs = inputs[:, :, 0, :, :]
                     else:
-                        # Reshape to 4D tensor
                         inputs = inputs.reshape(-1, inputs.shape[-3], inputs.shape[-2], inputs.shape[-1])
                 elif len(inputs.shape) == 3:  # Missing batch dimension
                     inputs = inputs.unsqueeze(0)
             
             # Implement Mixup data augmentation if enabled
-            if USE_MIXUP and epoch < epochs - 2:  # No mixup in final epochs
-                # Generate mixing parameter
+            if USE_MIXUP and epoch < epochs - 2:
                 alpha = MIXUP_ALPHA
                 lam = np.random.beta(alpha, alpha)
-                
-                # Create mixed batch
                 batch_size = inputs.size(0)
                 index = torch.randperm(batch_size).to(DEVICE)
                 mixed_inputs = lam * inputs + (1 - lam) * inputs[index]
                 targets_a, targets_b = targets, targets[index]
-                
-                # Forward pass on mixed inputs
                 outputs = model(mixed_inputs)
-                
-                # Compute loss with mixup targets
                 loss_a = criterion(outputs, targets_a)
                 loss_b = criterion(outputs, targets_b)
                 loss = lam * loss_a + (1 - lam) * loss_b
             else:
-                # Standard forward pass
                 outputs = model(inputs)
                 loss = criterion(outputs, targets)
             
@@ -912,38 +906,27 @@ def train_pytorch_model(model, dls, epochs=NUM_EPOCHS, lr=LEARNING_RATE):
             
             # Optimizer step after accumulating gradients
             if (i + 1) % grad_accum_steps == 0 or (i + 1) == len(dls.train):
-                # Gradient clipping to prevent exploding gradients
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-                
-                # Update weights
                 optimizer.step()
-                
-                # Reset gradients
                 optimizer.zero_grad()
             
-            # Track statistics (use full loss value for logging)
+            # Track statistics
             train_loss += (loss.item() * grad_accum_steps) * inputs.size(0)
             _, predicted = torch.max(outputs, 1)
             train_total += targets.size(0)
             
-            # For mixup, count predictions based on dominant class
             if USE_MIXUP and epoch < epochs - 2:
                 correct_a = (predicted == targets_a).float()
                 correct_b = (predicted == targets_b).float()
                 train_correct += (lam * correct_a + (1 - lam) * correct_b).sum().item()
             else:
                 train_correct += (predicted == targets).sum().item()
-            
-            # Log progress
-            if (i+1) % 20 == 0:
-                batch_train_loss = loss.item() * grad_accum_steps
-                batch_train_acc = train_correct / train_total if train_total > 0 else 0
-                log_info(f"Batch {i+1}/{len(dls.train)} - Train Loss: {batch_train_loss:.4f}, Train Acc: {batch_train_acc:.4f}")
-                log_memory()
         
-        # Calculate epoch statistics
+        # Calculate and display final training metrics
         train_loss = train_loss / train_total
         train_acc = train_correct / train_total
+        print(f"\nTraining - Loss: {train_loss:.4f}, Accuracy: {train_acc:.4f}")
+        log_info(f"Epoch {epoch+1} Training - Loss: {train_loss:.4f}, Accuracy: {train_acc:.4f}")
         
         # Update cosine annealing scheduler after each epoch
         if USE_COSINE_ANNEALING:
@@ -956,59 +939,55 @@ def train_pytorch_model(model, dls, epochs=NUM_EPOCHS, lr=LEARNING_RATE):
         val_loss = 0.0
         val_correct = 0
         val_total = 0
-        
-        # Track top-3 accuracy
         top3_correct = 0
         
+        # Create progress bar for validation
+        val_pbar = tqdm(dls.valid, 
+                       desc='Validating',
+                       leave=True,
+                       bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]')
+        
         with torch.no_grad():
-            for inputs, targets in dls.valid:
-                # Move data to device
+            for inputs, targets in val_pbar:
                 inputs = inputs.to(DEVICE)
                 targets = targets.to(DEVICE)
                 
-                # Check and fix tensor dimensions if needed
                 if len(inputs.shape) != 4:
-                    if len(inputs.shape) == 5:  # Case: [batch, c, c, h, w]
+                    if len(inputs.shape) == 5:
                         if inputs.shape[1] == 3 and inputs.shape[2] == 3:
                             inputs = inputs[:, :, 0, :, :]
                         else:
-                            # Reshape to 4D tensor
                             inputs = inputs.reshape(-1, inputs.shape[-3], inputs.shape[-2], inputs.shape[-1])
-                    elif len(inputs.shape) == 3:  # Missing batch dimension
+                    elif len(inputs.shape) == 3:
                         inputs = inputs.unsqueeze(0)
                 
-                # Forward pass - with TTA in later epochs if enabled
                 if USE_TEST_TIME_AUGMENTATION and epoch >= epochs // 2:
-                    # Use test-time augmentation for better predictions
                     probs = tta_inference(model, inputs)
-                    outputs = torch.log(probs + 1e-8)  # Convert back to logits
+                    outputs = torch.log(probs + 1e-8)
                 else:
-                    # Standard forward pass
                     outputs = model(inputs)
                 
-                # Compute loss
                 loss = criterion(outputs, targets)
-                
-                # Track statistics
                 val_loss += loss.item() * inputs.size(0)
                 _, predicted = torch.max(outputs, 1)
                 val_total += targets.size(0)
                 val_correct += (predicted == targets).sum().item()
                 
-                # Calculate top-3 accuracy
                 _, top3_preds = torch.topk(outputs, 3, dim=1)
                 for i, target in enumerate(targets):
                     if target in top3_preds[i]:
                         top3_correct += 1
+                
+                # Track statistics
+                val_loss += loss.item() * inputs.size(0)
+                val_correct += (predicted == targets).sum().item()
         
-        # Calculate validation statistics
+        # Calculate and display final validation metrics
         val_loss = val_loss / val_total
         val_acc = val_correct / val_total
         top3_acc = top3_correct / val_total
-        
-        # Update learning rate with ReduceLROnPlateau
-        if not USE_COSINE_ANNEALING:
-            scheduler.step(val_loss)
+        print(f"Validation - Loss: {val_loss:.4f}, Accuracy: {val_acc:.4f}, Top-3 Accuracy: {top3_acc:.4f}\n")
+        log_info(f"Epoch {epoch+1} Validation - Loss: {val_loss:.4f}, Accuracy: {val_acc:.4f}, Top-3 Accuracy: {top3_acc:.4f}")
         
         # Track history
         history['train_loss'].append(train_loss)
@@ -1028,10 +1007,8 @@ def train_pytorch_model(model, dls, epochs=NUM_EPOCHS, lr=LEARNING_RATE):
             best_val_acc = val_acc
             torch.save(model.state_dict(), best_model_path)
             log_info(f"Saved new best model with accuracy {val_acc:.4f}")
-            # Reset early stopping counter
             early_stop_counter = 0
         else:
-            # Increment early stopping counter
             early_stop_counter += 1
             log_info(f"Validation accuracy did not improve. Early stopping counter: {early_stop_counter}/{patience}")
         
@@ -1040,9 +1017,8 @@ def train_pytorch_model(model, dls, epochs=NUM_EPOCHS, lr=LEARNING_RATE):
         torch.save(model.state_dict(), latest_path)
         log_info(f"Saved latest model for epoch {epoch+1}")
         
-        # Plot training curves if matplotlib is available
+        # Plot training curves
         try:
-            # Create performance plots
             if (epoch + 1) % 5 == 0 or epoch == epochs - 1:
                 plt.figure(figsize=(12, 5))
                 
@@ -1070,16 +1046,13 @@ def train_pytorch_model(model, dls, epochs=NUM_EPOCHS, lr=LEARNING_RATE):
         except Exception as e:
             log_info(f"Could not create training curves: {e}")
         
-        # Check for early stopping
         if early_stop_counter >= patience:
             log_info(f"Early stopping triggered after {epoch+1} epochs")
             break
     
-    # Training complete
     log_info(f"Training completed in {time.time() - start_time:.2f}s")
     log_info(f"Best validation accuracy: {best_val_acc:.4f}")
     
-    # Load best model
     model.load_state_dict(torch.load(best_model_path))
     
     return model, best_val_acc
@@ -1404,15 +1377,35 @@ def predict_with_file(model_path, image_path, vocab=None):
         if not os.path.exists(model_path):
             return {'error': f"Model not found: {model_path}"}
             
-        # Get number of classes from vocab or default
-        num_classes = len(vocab) if vocab else 30
+        # First load the state dict to check the number of classes
+        try:
+            state_dict = torch.load(model_path, map_location=DEVICE)
+            if isinstance(state_dict, dict) and 'model' in state_dict:
+                state_dict = state_dict['model']
+            
+            # Find the last linear layer's weight shape to determine number of classes
+            for key in reversed(list(state_dict.keys())):
+                if 'weight' in key and len(state_dict[key].shape) == 2:
+                    num_classes = state_dict[key].shape[0]
+                    log_info(f"Detected {num_classes} classes in saved model")
+                    break
+        except Exception as e:
+            log_info(f"Error reading model state dict: {e}")
+            return {'error': f"Failed to read model state dict: {str(e)}"}
         
-        # Create model
+        # Create model with the correct number of classes
         model = create_pytorch_model(ARCHITECTURE, num_classes=num_classes)
         
         # Load weights
-        if not load_pytorch_model(model, model_path):
-            return {'error': "Failed to load model weights"}
+        try:
+            if isinstance(state_dict, dict) and 'model' in state_dict:
+                model.load_state_dict(state_dict['model'], strict=False)
+            else:
+                model.load_state_dict(state_dict, strict=False)
+            log_info("Successfully loaded model weights")
+        except Exception as e:
+            log_info(f"Error loading model weights: {e}")
+            return {'error': f"Failed to load model weights: {str(e)}"}
             
         # Load vocabulary if not provided
         if vocab is None:
@@ -1423,7 +1416,9 @@ def predict_with_file(model_path, image_path, vocab=None):
                     import pickle
                     with open(vocab_path, 'rb') as f:
                         vocab = pickle.load(f)
-                except:
+                    log_info(f"Loaded vocabulary with {len(vocab)} classes")
+                except Exception as e:
+                    log_info(f"Error loading vocabulary: {e}")
                     vocab = [f"Class {i}" for i in range(num_classes)]
             else:
                 vocab = [f"Class {i}" for i in range(num_classes)]
