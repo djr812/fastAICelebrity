@@ -21,6 +21,8 @@ from PIL import Image
 from torchvision.models import resnet50, ResNet50_Weights
 from torchvision.models import convnext_small, ConvNeXt_Small_Weights
 from tqdm import tqdm
+from efficientnet_pytorch import EfficientNet
+import subprocess
 
 # Focal Loss implementation for dealing with class imbalance
 class FocalLoss(nn.Module):
@@ -89,12 +91,12 @@ logging.basicConfig(
 logging.getLogger('PIL').setLevel(logging.WARNING)  # Reduce PIL logging noise
 
 # Configuration
-DATA_DIR = Path("/home/dave/torch/celeba_images/img_align_celeba")
+DATA_DIR = Path("/mnt/ramdrv/img_align_celeba")  # Using RAM drive for faster access
 IDENTITY_FILE = "list_identity_celeba.txt"
 MODEL_PATH = Path("models")
 RESULTS_DIR = Path("evaluation_results")
 MODEL_NAME = "celebrity_recognition_model.pkl"
-BATCH_SIZE = 32  # Increased from 16 to better utilize RTX 4060
+BATCH_SIZE = 16  # Reduced from 32 to prevent OOM during fine-tuning
 IMAGE_SIZE = 224  # Initial size for progressive resizing
 FINAL_IMAGE_SIZE = 320  # Final size for better detail
 NUM_EPOCHS = 20  # More epochs for better convergence
@@ -106,7 +108,7 @@ USE_MIXUP = True
 MIXUP_ALPHA = 0.2  # More aggressive mixing
 LABEL_SMOOTHING = 0.1  # Increased label smoothing
 USE_PROGRESSIVE_RESIZING = True
-ARCHITECTURE = 'resnet101'  # Use larger model
+ARCHITECTURE = 'efficientnet_b2'  # Use EfficientNet B2 for better memory efficiency
 USE_PURE_PYTORCH = True
 VALIDATION_PCT = 0.2
 WEIGHT_DECAY = 1e-4  # Increased weight decay
@@ -116,6 +118,7 @@ GRAD_ACCUM_STEPS = 1  # Reduced since gradient accumulation is disabled
 USE_FOCAL_LOSS = True
 USE_COSINE_ANNEALING = True
 DROPOUT_RATE = 0.4  # Increased dropout
+POST_TRAINING_SCRIPT = '/home/dave/notify.sh "Training Completed" "Your training completed successfully."'  # Path to bash script to run after successful training
 
 # Set device globally to ensure consistency
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -672,13 +675,135 @@ def create_pytorch_model(arch_name=ARCHITECTURE, num_classes=None):
     log_info(f"Creating PyTorch model with {arch_name} architecture")
     
     # Create model based on architecture name
-    if arch_name == 'resnet50':
+    if arch_name == 'efficientnet-b2' or arch_name == 'efficientnet_b2':
+        try:
+            # Load pretrained EfficientNet B2
+            model = EfficientNet.from_pretrained('efficientnet-b2')
+            
+            # Get feature dimension
+            num_features = model._fc.in_features
+            
+            # Replace the final layer with a sequence that includes dropout
+            model._fc = nn.Sequential(
+                nn.BatchNorm1d(num_features),
+                nn.Dropout(0.4),
+                nn.Linear(num_features, 1024),
+                nn.SiLU(),
+                nn.BatchNorm1d(1024),
+                nn.Dropout(0.3),
+                nn.Linear(1024, num_classes)
+            )
+            
+            # Initialize the new layers
+            for m in model._fc.modules():
+                if isinstance(m, nn.Linear):
+                    nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                    if m.bias is not None:
+                        nn.init.constant_(m.bias, 0)
+                elif isinstance(m, (nn.BatchNorm1d)):
+                    nn.init.constant_(m.weight, 1)
+                    nn.init.constant_(m.bias, 0)
+                    
+        except Exception as e:
+            log_info(f"EfficientNet not available: {e}, falling back to ResNet50")
+            model = resnet50(weights=ResNet50_Weights.DEFAULT)
+            num_features = model.fc.in_features
+            model.fc = nn.Sequential(
+                nn.BatchNorm1d(num_features),
+                nn.Dropout(0.3),
+                nn.Linear(num_features, 512),
+                nn.ReLU(),
+                nn.BatchNorm1d(512),
+                nn.Dropout(0.2),
+                nn.Linear(512, num_classes)
+            )
+    elif arch_name == 'efficientnet-b3' or arch_name == 'efficientnet_b3':
+        try:
+            # Load pretrained EfficientNet B3
+            model = EfficientNet.from_pretrained('efficientnet-b3')
+            
+            # Get feature dimension
+            num_features = model._fc.in_features
+            
+            # Replace the final layer with a sequence that includes dropout
+            model._fc = nn.Sequential(
+                nn.BatchNorm1d(num_features),
+                nn.Dropout(0.4),
+                nn.Linear(num_features, 1024),
+                nn.SiLU(),
+                nn.BatchNorm1d(1024),
+                nn.Dropout(0.3),
+                nn.Linear(1024, num_classes)
+            )
+            
+            # Initialize the new layers
+            for m in model._fc.modules():
+                if isinstance(m, nn.Linear):
+                    nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                    if m.bias is not None:
+                        nn.init.constant_(m.bias, 0)
+                elif isinstance(m, (nn.BatchNorm1d)):
+                    nn.init.constant_(m.weight, 1)
+                    nn.init.constant_(m.bias, 0)
+                    
+        except Exception as e:
+            log_info(f"EfficientNet not available: {e}, falling back to ResNet50")
+            model = resnet50(weights=ResNet50_Weights.DEFAULT)
+            num_features = model.fc.in_features
+            model.fc = nn.Sequential(
+                nn.BatchNorm1d(num_features),
+                nn.Dropout(0.3),
+                nn.Linear(num_features, 512),
+                nn.ReLU(),
+                nn.BatchNorm1d(512),
+                nn.Dropout(0.2),
+                nn.Linear(512, num_classes)
+            )
+    elif arch_name == 'efficientnet-b4':
+        try:
+            # Load pretrained EfficientNet B4
+            model = EfficientNet.from_pretrained('efficientnet-b4')
+            
+            # Get feature dimension
+            num_features = model._fc.in_features
+            
+            # Replace the final layer with a sequence that includes dropout
+            model._fc = nn.Sequential(
+                nn.BatchNorm1d(num_features),
+                nn.Dropout(0.4),
+                nn.Linear(num_features, 1024),
+                nn.SiLU(),
+                nn.BatchNorm1d(1024),
+                nn.Dropout(0.3),
+                nn.Linear(1024, num_classes)
+            )
+            
+            # Initialize the new layers
+            for m in model._fc.modules():
+                if isinstance(m, nn.Linear):
+                    nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                    if m.bias is not None:
+                        nn.init.constant_(m.bias, 0)
+                elif isinstance(m, (nn.BatchNorm1d)):
+                    nn.init.constant_(m.weight, 1)
+                    nn.init.constant_(m.bias, 0)
+                    
+        except Exception as e:
+            log_info(f"EfficientNet not available: {e}, falling back to ResNet50")
+            model = resnet50(weights=ResNet50_Weights.DEFAULT)
+            num_features = model.fc.in_features
+            model.fc = nn.Sequential(
+                nn.BatchNorm1d(num_features),
+                nn.Dropout(0.3),
+                nn.Linear(num_features, 512),
+                nn.ReLU(),
+                nn.BatchNorm1d(512),
+                nn.Dropout(0.2),
+                nn.Linear(512, num_classes)
+            )
+    elif arch_name == 'resnet50':
         model = resnet50(weights=ResNet50_Weights.DEFAULT)
-        
-        # Add dropout and feature normalization between the pool and the fc layer
         num_features = model.fc.in_features
-        
-        # Replace the final layer with a sequence that includes dropout
         model.fc = nn.Sequential(
             nn.BatchNorm1d(num_features),
             nn.Dropout(0.3),
@@ -688,18 +813,12 @@ def create_pytorch_model(arch_name=ARCHITECTURE, num_classes=None):
             nn.Dropout(0.2),
             nn.Linear(512, num_classes)
         )
-        
     elif arch_name == 'convnext_small':
         try:
             model = convnext_small(weights=ConvNeXt_Small_Weights.DEFAULT)
-            # Get feature dimension
             num_features = model.classifier[-1].in_features
-            
-            # Replace the final layers
             model.classifier = nn.Sequential(
-                # Keep the first part (LayerNorm)
                 model.classifier[0],
-                # Replace the linear layer with a sequence
                 nn.Dropout(0.3),
                 nn.Linear(num_features, 512),
                 nn.GELU(),
@@ -710,7 +829,6 @@ def create_pytorch_model(arch_name=ARCHITECTURE, num_classes=None):
         except Exception as e:
             log_info(f"ConvNext not available: {e}, falling back to ResNet50")
             model = resnet50(weights=ResNet50_Weights.DEFAULT)
-            # Add dropout and feature normalization
             num_features = model.fc.in_features
             model.fc = nn.Sequential(
                 nn.BatchNorm1d(num_features),
@@ -722,10 +840,8 @@ def create_pytorch_model(arch_name=ARCHITECTURE, num_classes=None):
                 nn.Linear(512, num_classes)
             )
     else:
-        # Default fallback to ResNet50
         log_info(f"Architecture {arch_name} not recognized, using ResNet50")
         model = resnet50(weights=ResNet50_Weights.DEFAULT)
-        # Add dropout and feature normalization
         num_features = model.fc.in_features
         model.fc = nn.Sequential(
             nn.BatchNorm1d(num_features),
@@ -737,7 +853,7 @@ def create_pytorch_model(arch_name=ARCHITECTURE, num_classes=None):
             nn.Linear(512, num_classes)
         )
     
-    # Initialize the new layers properly (this can help with convergence)
+    # Initialize the new layers properly
     for m in model.modules():
         if isinstance(m, nn.Linear):
             nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
@@ -952,15 +1068,6 @@ def train_pytorch_model(model, dls, epochs=NUM_EPOCHS, lr=LEARNING_RATE):
                 inputs = inputs.to(DEVICE)
                 targets = targets.to(DEVICE)
                 
-                if len(inputs.shape) != 4:
-                    if len(inputs.shape) == 5:
-                        if inputs.shape[1] == 3 and inputs.shape[2] == 3:
-                            inputs = inputs[:, :, 0, :, :]
-                        else:
-                            inputs = inputs.reshape(-1, inputs.shape[-3], inputs.shape[-2], inputs.shape[-1])
-                    elif len(inputs.shape) == 3:
-                        inputs = inputs.unsqueeze(0)
-                
                 if USE_TEST_TIME_AUGMENTATION and epoch >= epochs // 2:
                     probs = tta_inference(model, inputs)
                     outputs = torch.log(probs + 1e-8)
@@ -977,10 +1084,6 @@ def train_pytorch_model(model, dls, epochs=NUM_EPOCHS, lr=LEARNING_RATE):
                 for i, target in enumerate(targets):
                     if target in top3_preds[i]:
                         top3_correct += 1
-                
-                # Track statistics
-                val_loss += loss.item() * inputs.size(0)
-                val_correct += (predicted == targets).sum().item()
         
         # Calculate and display final validation metrics
         val_loss = val_loss / val_total
@@ -1467,6 +1570,23 @@ def main():
         log_info("Saved vocabulary for future predictions")
     
     log_info("Training completed successfully")
+    
+    # Run post-training script if specified
+    if POST_TRAINING_SCRIPT:
+        try:
+            log_info(f"Running post-training command: {POST_TRAINING_SCRIPT}")
+            # Check if it's a file path or a direct command
+            if os.path.exists(POST_TRAINING_SCRIPT):
+                # It's a script file
+                subprocess.run(['bash', POST_TRAINING_SCRIPT], check=True)
+            else:
+                # It's a direct command
+                subprocess.run(POST_TRAINING_SCRIPT, shell=True, check=True)
+            log_info("Post-training command completed successfully")
+        except subprocess.CalledProcessError as e:
+            log_info(f"Error running post-training command: {e}")
+        except Exception as e:
+            log_info(f"Unexpected error running post-training command: {e}")
     
     # Create a simple prediction script
     with open('predict.py', 'w') as f:
