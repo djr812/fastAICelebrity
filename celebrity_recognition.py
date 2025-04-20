@@ -99,25 +99,25 @@ MODEL_NAME = "celebrity_recognition_model.pkl"
 BATCH_SIZE = 16  # Reduced from 32 to prevent OOM during fine-tuning
 IMAGE_SIZE = 224  # Initial size for progressive resizing
 FINAL_IMAGE_SIZE = 320  # Final size for better detail
-NUM_EPOCHS = 20  # More epochs for better convergence
-FINE_TUNE_EPOCHS = 15  # Fine-tuning epochs
-LEARNING_RATE = 1e-4  # Lower initial learning rate
+NUM_EPOCHS = 30  # Increased from 20 to allow more time to learn from augmented data
+FINE_TUNE_EPOCHS = 20  # Increased from 15 for better fine-tuning
+LEARNING_RATE = 2e-4  # Increased from 1e-4 to overcome augmentation noise
 MIN_IMAGES_PER_CELEB = 20  # Minimum images per celebrity
 MAX_CELEBRITIES = 6348  # Use all available celebrities
 USE_MIXUP = True
-MIXUP_ALPHA = 0.2  # More aggressive mixing
+MIXUP_ALPHA = 0.3  # Increased from 0.2 for more aggressive mixing
 LABEL_SMOOTHING = 0.1  # Increased label smoothing
 USE_PROGRESSIVE_RESIZING = True
 ARCHITECTURE = 'efficientnet_b2'  # Use EfficientNet B2 for better memory efficiency
 USE_PURE_PYTORCH = True
 VALIDATION_PCT = 0.2
-WEIGHT_DECAY = 1e-4  # Increased weight decay
+WEIGHT_DECAY = 2e-4  # Increased from 1e-4 for better regularization
 USE_TEST_TIME_AUGMENTATION = True
 USE_GRADIENT_ACCUMULATION = False  # Disabled since we have more VRAM
 GRAD_ACCUM_STEPS = 1  # Reduced since gradient accumulation is disabled
 USE_FOCAL_LOSS = True
 USE_COSINE_ANNEALING = True
-DROPOUT_RATE = 0.4  # Increased dropout
+DROPOUT_RATE = 0.5  # Increased from 0.4 for better regularization
 POST_TRAINING_SCRIPT = '/home/dave/notify.sh "Training Completed" "Your training completed successfully."'  # Path to bash script to run after successful training
 
 # Set device globally to ensure consistency
@@ -203,17 +203,19 @@ def create_pure_pytorch_datasets(df, img_size=IMAGE_SIZE):
     # Enhanced train transforms with more augmentation
     train_transforms = transforms.Compose([
         transforms.Resize((img_size+32, img_size+32)),  # Resize larger then crop for better scale diversity
-        transforms.RandomCrop((img_size, img_size)),
+        transforms.RandomResizedCrop(img_size, scale=(0.7, 1.0), ratio=(0.8, 1.2)),  # More aggressive cropping
         transforms.RandomHorizontalFlip(p=0.5),
-        transforms.RandomRotation(10),
-        transforms.RandomAffine(degrees=0, translate=(0.05, 0.05), scale=(0.95, 1.05)),
-        transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.1, hue=0.05),
-        transforms.RandomPerspective(distortion_scale=0.1, p=0.2),
-        transforms.RandomGrayscale(p=0.01),
-        # Conditionally add RandomAutocontrast based on availability
-        *([transforms.RandomAutocontrast(p=0.2)] if hasattr(transforms, 'RandomAutocontrast') else []),
+        transforms.RandomRotation(15),  # Increased rotation
+        transforms.RandomAffine(degrees=0, translate=(0.1, 0.1), scale=(0.9, 1.1)),  # More translation and scaling
+        transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.2, hue=0.1),  # More aggressive color jitter
+        transforms.RandomPerspective(distortion_scale=0.2, p=0.3),  # More perspective distortion
+        transforms.RandomGrayscale(p=0.1),
+        transforms.GaussianBlur(kernel_size=3, sigma=(0.1, 2.0)),  # Add Gaussian blur
+        transforms.RandomAutocontrast(p=0.2),
+        transforms.RandomEqualize(p=0.2),
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        transforms.RandomErasing(p=0.5, scale=(0.02, 0.2), ratio=(0.3, 3.3), value='random')  # Add random erasing
     ])
     
     # Simpler transforms for validation
@@ -243,7 +245,7 @@ def create_pure_pytorch_datasets(df, img_size=IMAGE_SIZE):
         train_dataset, 
         batch_size=BATCH_SIZE, 
         shuffle=True,
-        num_workers=4,
+        num_workers=6,
         pin_memory=torch.cuda.is_available(),
         drop_last=True  # Drop last batch to avoid size mismatches
     )
@@ -929,18 +931,18 @@ def train_pytorch_model(model, dls, epochs=NUM_EPOCHS, lr=LEARNING_RATE):
         eps=1e-8
     )
     
-    # Learning rate scheduler
+    # Learning rate scheduler with longer warmup
     if USE_COSINE_ANNEALING:
         scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
             optimizer, 
             T_0=epochs, 
             T_mult=1, 
-            eta_min=lr/20
+            eta_min=lr/10  # Less aggressive minimum learning rate
         )
         log_info("Using Cosine Annealing scheduler with warm restarts")
     else:
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, mode='min', factor=0.5, patience=2, verbose=True, min_lr=lr/20
+            optimizer, mode='min', factor=0.5, patience=3, verbose=True, min_lr=lr/10
         )
         log_info("Using ReduceLROnPlateau scheduler")
     
@@ -956,7 +958,7 @@ def train_pytorch_model(model, dls, epochs=NUM_EPOCHS, lr=LEARNING_RATE):
     }
     
     # Early stopping parameters
-    patience = 5
+    patience = 7  # Increased from 5 to allow more time for convergence
     early_stop_counter = 0
     
     # Gradient accumulation setup
